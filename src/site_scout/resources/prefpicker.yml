@@ -1,0 +1,142 @@
+# variant list is found at the end of the template
+pref:
+  accessibility.force_disabled:
+    variants:
+      a11y:
+      - -1
+      default:
+      - null
+  app.normandy.enabled:
+    variants:
+      default:
+      - false
+  app.update.auto:
+    variants:
+      default:
+      - false
+  browser.newtabpage.enabled:
+    variants:
+      default:
+      - false
+  browser.safebrowsing.blockedURIs.enabled:
+    variants:
+      default:
+      - false
+  browser.safebrowsing.downloads.enabled:
+    variants:
+      default:
+      - false
+  browser.safebrowsing.downloads.remote.enabled:
+    variants:
+      default:
+      - false
+  browser.safebrowsing.enabled:
+    variants:
+      default:
+      - false
+  browser.safebrowsing.malware.enabled:
+    variants:
+      default:
+      - false
+  browser.safebrowsing.phishing.enabled:
+    variants:
+      default:
+      - false
+  # TODO: this can be removed (browser.startup.page=0 does the job)?
+  browser.startup.homepage:
+    variants:
+      default:
+      - about:blank
+  browser.startup.homepage_override.mstone:
+    variants:
+      default:
+      - ignore
+  # use about:blank
+  browser.startup.page:
+    variants:
+      default:
+      - 0
+  cookiebanners.service.mode:
+    variants:
+      default:
+      - 2
+  cookiebanners.service.mode.privateBrowsing:
+    variants:
+      default:
+      - 2
+  datareporting.healthreport.uploadEnabled:
+    variants:
+      default:
+      - false
+  datareporting.policy.dataSubmissionEnabled:
+    variants:
+      default:
+      - false
+  datareporting.policy.dataSubmissionPolicyAcceptedVersion:
+    variants:
+      default:
+      - 2
+  datareporting.policy.dataSubmissionPolicyBypassNotification:
+    variants:
+      default:
+      - true
+  datareporting.policy.firstRunURL:
+    variants:
+      default:
+      - ''
+  # 0=Allowed, 1=Blocked, 2=Prompt
+  media.autoplay.default:
+    variants:
+      default:
+      - 0
+  media.autoplay.enabled.user-gestures-needed:
+    variants:
+      default:
+      - false
+  media.eme.enabled:
+    variants:
+      default:
+      - true
+  media.eme.hdcp-policy-check.enabled:
+    variants:
+      default:
+      - true
+  # disable automatic connection
+  # https://support.mozilla.org/en-US/kb/how-stop-firefox-making-automatic-connections
+  network.captive-portal-service.enabled:
+    variants:
+      default:
+      - false
+  # disable automatic connection
+  # https://support.mozilla.org/en-US/kb/how-stop-firefox-making-automatic-connections
+  network.connectivity-service.enabled:
+    variants:
+      default:
+      - false
+  permissions.default.camera:
+    variants:
+      default:
+      - 2
+  permissions.default.geo:
+    variants:
+      default:
+      - 2
+  permissions.default.microphone:
+    variants:
+      default:
+      - 2
+  toolkit.startup.max_resumed_crashes:
+    variants:
+      default:
+      - -1
+  toolkit.telemetry.enabled:
+    variants:
+      default:
+      - false
+  toolkit.telemetry.server:
+    variants:
+      default:
+      - ''
+
+variant:
+- a11y

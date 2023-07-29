@@ -1,0 +1,47 @@
+# type: ignore
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0/.
+from pytest import mark
+
+from .reporter import FuzzManagerReporter
+
+
+@mark.parametrize(
+    "include_cfg, include_aux",
+    [
+        # missing aux log
+        (True, False),
+        # missing binary .fuzzmanagerconf files
+        (False, True),
+    ],
+)
+def test_fuzzmanager_reporter_01(tmp_path, mocker, include_cfg, include_aux):
+    """test FuzzManagerReporter"""
+    collector = mocker.patch("site_scout.reporter.Collector", autospec=True)
+    empty = tmp_path / "empty.bin"
+    empty.touch()
+    fm_config = None
+    if include_cfg:
+        fm_config = tmp_path / f"{empty.name}.fuzzmanagerconf"
+        fm_config.write_text(
+            "\n".join(
+                (
+                    "[Main]",
+                    "platform = x86-64",
+                    "product = mozilla-central",
+                    "product_version = 20230629-e784085dfb50",
+                    "os = linux",
+                )
+            )
+        )
+    result = tmp_path / "result"
+    result.mkdir()
+    (result / "log_stderr.txt").write_text("foo")
+    (result / "log_stdout.txt").write_text("foo")
+    if include_aux:
+        (result / "log_ffp_asan_16365.log.18532.txt").write_text("foo")
+    (result / "url.txt").write_text("foo")
+    reporter = FuzzManagerReporter(empty, fm_config=fm_config)
+    assert reporter.submit(result)
+    assert collector.return_value.submit.call_count == 1
