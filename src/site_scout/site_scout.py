@@ -219,7 +219,7 @@ class SiteScout:
         """
         assert launch_attempts > 0
 
-        env_mod: Dict[str, str | None] = {"MOZ_CRASHREPORTER_SHUTDOWN": "1"}
+        env_mod: Dict[str, Optional[str]] = {"MOZ_CRASHREPORTER_SHUTDOWN": "1"}
 
         for attempt in range(1, launch_attempts + 1):
             ffp = FFPuppet(
