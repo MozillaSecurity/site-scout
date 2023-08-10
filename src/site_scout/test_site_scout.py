@@ -46,8 +46,9 @@ def test_site_scout_launch(mocker):
 @mark.parametrize(
     "attempts, failures, success",
     [
-        #
+        # single attempt failure
         (1, 1, False),
+        # success on second attempt
         (2, 1, True),
     ],
 )
@@ -268,13 +269,13 @@ def test_site_scout_add_url(url, result):
 @mark.parametrize(
     "active, jobs, completed, target, results, force",
     [
-        #
+        # nothing running
         (0, 1, 0, 0, 0, False),
-        #
+        # running with single site to visit
         (1, 1, 0, 1, 0, False),
-        #
+        # running with single site to visit, forced report
         (1, 1, 0, 1, 0, True),
-        #
+        # typical scenario
         (2, 3, 4, 10, 1, False),
     ],
 )
