@@ -45,7 +45,7 @@ tasks:
       script:
         - bash
         - '-xec'
-        - tox
+        - tox; tox -e codecov
       jobs:
         include:
           - name: tests python 3.8
