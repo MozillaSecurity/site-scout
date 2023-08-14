@@ -14,14 +14,23 @@ from .main import generate_prefs, main
         [],
         # log-level
         ["--log-level", "DEBUG"],
+        # url
+        ["-u", "http://mozilla.com"],
     ],
 )
 def test_main_01(mocker, tmp_path, args):
     """test main()"""
-    mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
-    data = tmp_path / "data.yml"
-    data.write_text("{}")
-    main([str(data), "-i", str(data)] + args)
+    ffp = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
+    ffp.return_value.is_healthy.return_value = False
+    fake_bin = tmp_path / "fake_browser_bin"
+    fake_bin.touch()
+    default_args = [str(fake_bin)]
+    # -i or -u is required
+    if "-u" not in args:
+        data = tmp_path / "data.yml"
+        data.write_text("{}")
+        default_args.extend(["-i", str(data)])
+    main(default_args + args)
 
 
 def test_generate_prefs_01(tmp_path):
