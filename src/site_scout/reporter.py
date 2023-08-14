@@ -54,12 +54,18 @@ class FuzzManagerReporter:
         assert log_id in ("aux", "stderr", "stdout")
 
         if log_id == "aux":
-            # look up sanitizer log
+            # look for sanitizer logs
             log_file = None
             for entry in log_path.glob("log_*.txt"):
                 if "_asan_" in entry.name:
                     log_file = entry
                     break
+            # look for minidump logs
+            if not log_file:
+                md_logs = sorted(log_path.glob("log_minidump_*.txt"))
+                if md_logs:
+                    log_file = md_logs[0]
+            # TODO: valgrind logs
         else:
             log_file = log_path / f"log_{log_id}.txt"
 
