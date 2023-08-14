@@ -8,15 +8,19 @@ from .reporter import FuzzManagerReporter
 
 
 @mark.parametrize(
-    "include_cfg, include_aux",
+    "include_cfg, aux_log",
     [
         # missing aux log
-        (True, False),
+        (True, None),
         # missing binary .fuzzmanagerconf files
-        (False, True),
+        (False, None),
+        # Sanitizer logs
+        (True, "log_ffp_asan_16365.log.18532.txt"),
+        # minidump logs
+        (True, "log_minidump_00.txt"),
     ],
 )
-def test_fuzzmanager_reporter_01(tmp_path, mocker, include_cfg, include_aux):
+def test_fuzzmanager_reporter_01(tmp_path, mocker, include_cfg, aux_log):
     """test FuzzManagerReporter"""
     collector = mocker.patch("site_scout.reporter.Collector", autospec=True)
     empty = tmp_path / "empty.bin"
@@ -39,8 +43,8 @@ def test_fuzzmanager_reporter_01(tmp_path, mocker, include_cfg, include_aux):
     result.mkdir()
     (result / "log_stderr.txt").write_text("foo")
     (result / "log_stdout.txt").write_text("foo")
-    if include_aux:
-        (result / "log_ffp_asan_16365.log.18532.txt").write_text("foo")
+    if aux_log:
+        (result / aux_log).write_text("foo")
     (result / "url.txt").write_text("foo")
     reporter = FuzzManagerReporter(empty, fm_config=fm_config)
     assert reporter.submit(result)
