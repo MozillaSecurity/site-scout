@@ -62,8 +62,8 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
         "--launch-timeout",
         type=int,
         default=300,
-        help="Number of seconds to wait for the browser to become "
-        "responsive after launching. (default: %(default)s)",
+        help="Time in seconds to wait for browser to launch and begin navigation"
+        " (default: %(default)s).",
     )
     level_map = {"INFO": INFO, "DEBUG": DEBUG}
     parser.add_argument(
@@ -76,18 +76,18 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
         "--log-limit",
         type=int,
         default=0,
-        help="Browser log file size limit in MBs (default: %(default)s, no limit)",
+        help="Browser log file size limit in MBs (default: no limit).",
     )
     parser.add_argument(
         "--memory-limit",
         type=int,
         default=0,
-        help="Browser memory limit in MBs (default: %(default)s, no limit)",
+        help="Browser memory limit in MBs (default: no limit).",
     )
     parser.add_argument(
         "--prefs",
         type=Path,
-        help="Custom prefs.js file to use (default: profile default)",
+        help="Custom prefs.js file to use (default: generated).",
     )
     parser.add_argument("--profile", type=Path, help="")
     parser.add_argument(
@@ -95,18 +95,18 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
         "--output-path",
         default=Path.cwd(),
         type=Path,
-        help="Location to save results. (default: %(default)s)",
+        help="Location to save results (default: %(default)s).",
     )
     parser.add_argument(
         "--status-report",
         type=Path,
-        help="Location to save periodic status report. (default: No report)",
+        help="Location to save periodic status report (default: no report).",
     )
     parser.add_argument(
         "--time-limit",
         type=int,
         default=120,
-        help="Page load time limit (default: %(default)s).",
+        help="Page load time limit in seconds (default: %(default)s).",
     )
     parser.add_argument(
         "--version",
@@ -118,7 +118,29 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
 
     args = parser.parse_args(argv)
 
-    # TODO: add arg checks
+    if args.jobs < 1:
+        parser.error("--jobs must be >= 1")
+
     args.log_level = level_map[args.log_level]
+
+    if args.log_limit < 0:
+        parser.error("--log-limit must be >= 0")
+    args.log_limit *= 1_048_576
+
+    if args.memory_limit < 0:
+        parser.error("--memory-limit must be >= 0")
+    args.memory_limit *= 1_048_576
+
+    if not args.binary.is_file():
+        parser.error(f"binary does not exist: '{args.binary}'")
+
+    if args.input and not args.input.is_file():
+        parser.error(f"-i/--input does not exist: '{args.input}'")
+
+    if not args.output_path.is_dir():
+        parser.error(f"-o/--output-path does not exist: '{args.output_path}'")
+
+    if args.prefs and not args.prefs.is_file():
+        parser.error(f"--prefs does not exist: '{args.prefs}'")
 
     return args
