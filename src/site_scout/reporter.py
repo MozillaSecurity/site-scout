@@ -53,9 +53,9 @@ class FuzzManagerReporter:
         """
         assert log_id in ("aux", "stderr", "stdout")
 
+        log_file: Optional[Path] = None
         if log_id == "aux":
             # look for sanitizer logs
-            log_file = None
             for entry in log_path.glob("log_*.txt"):
                 if "_asan_" in entry.name:
                     log_file = entry
