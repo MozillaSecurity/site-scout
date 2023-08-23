@@ -7,6 +7,7 @@ from logging import getLogger
 from pathlib import Path
 from random import shuffle
 from shutil import rmtree
+from tempfile import gettempdir
 from time import gmtime, sleep, strftime, time
 from typing import Any, Dict, Iterator, List, Optional
 from urllib.parse import urlparse
@@ -17,6 +18,8 @@ from yaml import safe_load
 from .reporter import FuzzManagerReporter
 
 LOG = getLogger(__name__)
+TMP_PATH = Path(gettempdir()) / "site-scout"
+TMP_PATH.mkdir(exist_ok=True, parents=True)
 
 
 class Status:
@@ -158,7 +161,7 @@ class SiteScout:
         self._profile = profile
         # reporter
         self._fuzzmanager: Optional[FuzzManagerReporter] = (
-            FuzzManagerReporter(binary) if fuzzmanager else None
+            FuzzManagerReporter(binary, working_path=TMP_PATH) if fuzzmanager else None
         )
 
     def __enter__(self) -> "SiteScout":
@@ -226,6 +229,7 @@ class SiteScout:
                 debugger=self._debugger,
                 headless=self._display,
                 use_profile=self._profile,
+                working_path=str(TMP_PATH),
             )
             try:
                 ffp.launch(

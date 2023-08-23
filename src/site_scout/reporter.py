@@ -20,9 +20,16 @@ class FuzzManagerReporter:
 
     FM_CONFIG = Path.home() / ".fuzzmanagerconf"
 
-    __slots__ = ("_conf",)
+    __slots__ = ("_conf", "_working_path")
 
-    def __init__(self, binary: Path, fm_config: Path = FM_CONFIG):
+    def __init__(
+        self,
+        binary: Path,
+        fm_config: Path = FM_CONFIG,
+        working_path: Optional[Path] = None,
+    ):
+        self._working_path = working_path
+
         if fm_config and not fm_config.is_file():
             raise OSError(f"Missing: {fm_config}")
 
@@ -100,7 +107,7 @@ class FuzzManagerReporter:
         )
         crash_info.configuration.addMetadata({"url": (result / "url.txt").read_text()})
 
-        with TemporaryDirectory(prefix="site-scout-fm-zip") as tmp_dir:
+        with TemporaryDirectory(prefix="fm-report", dir=self._working_path) as tmp_dir:
             # add result to a zip file
             zip_name = Path(tmp_dir) / f"{result.name}.zip"
             with ZipFile(zip_name, mode="w", compression=ZIP_DEFLATED) as zip_fp:
