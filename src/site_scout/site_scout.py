@@ -131,6 +131,23 @@ class Visit:
 class SiteScout:
     """SiteScout can visit a collection of URLs and report process failures."""
 
+    __slots__ = (
+        "_active",
+        "_binary",
+        "_cert_files",
+        "_complete",
+        "_debugger",
+        "_display",
+        "_extension",
+        "_fuzzmanager",
+        "_launch_timeout",
+        "_log_limit",
+        "_memory_limit",
+        "_prefs",
+        "_profile",
+        "_urls",
+    )
+
     def __init__(
         self,
         binary: Path,
