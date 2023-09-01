@@ -308,3 +308,28 @@ def test_site_scout_status(
         assert status._next == next_report
     else:
         assert status._next > next_report
+
+
+@mark.parametrize(
+    "size, limit, randomize",
+    [
+        # empty
+        (0, 0, True),
+        # empty with limit
+        (0, 1, True),
+        # no limit
+        (10, 0, True),
+        # enforce limit
+        (10, 2, True),
+    ],
+)
+def test_site_scout_schedule_urls(size, limit, randomize):
+    """test Status.schedule_urls()"""
+    with SiteScout(None) as scout:
+        # prepare scout._urls
+        scout._urls = list(range(size))
+        scout.schedule_urls(url_limit=limit, randomize=randomize)
+        if limit and size >= limit:
+            assert len(scout._urls) == limit
+        else:
+            assert len(scout._urls) == size

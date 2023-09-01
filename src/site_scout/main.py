@@ -84,6 +84,7 @@ def main(argv: Optional[List[str]] = None) -> None:
                     scout.load_dict(safe_load(in_fp))
             for in_url in args.url:
                 scout.load_str(in_url)
+            scout.schedule_urls(url_limit=args.url_limit)
             scout.run(
                 args.output_path,
                 args.time_limit,

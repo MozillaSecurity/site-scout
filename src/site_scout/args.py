@@ -114,6 +114,12 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
         help="Page load time limit in seconds (default: %(default)s).",
     )
     parser.add_argument(
+        "--url-limit",
+        type=int,
+        default=0,
+        help="Maximum number of URLs to visit (default: no limit).",
+    )
+    parser.add_argument(
         "--version",
         "-V",
         action="version",
