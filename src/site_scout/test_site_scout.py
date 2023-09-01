@@ -7,7 +7,6 @@ from itertools import chain, count, cycle, repeat
 
 from ffpuppet import LaunchError, Reason
 from pytest import mark, raises
-from yaml import safe_dump
 
 from .site_scout import URL, SiteScout, Status
 
@@ -225,15 +224,11 @@ def test_site_scout_run(mocker, tmp_path, urls, reason, jobs, reports, use_fm, s
         (["http://a.c/", "http://b.a.c/d"], {"a.c": {"*": ["/"], "b": ["/d"]}}),
     ],
 )
-def test_site_scout_load_urls_from_yml(tmp_path, urls, input_data):
-    """test SiteScout.load_urls_from_yml()"""
-    content = tmp_path / "data.yml"
-    with content.open("w") as dst:
-        safe_dump(input_data, dst)
-
+def test_site_scout_load_dict(urls, input_data):
+    """test SiteScout.load_dict()"""
     with SiteScout(None) as scout:
         assert not scout._active
-        scout.load_urls_from_yml(content)
+        scout.load_dict(input_data)
         for url in scout._urls:
             assert str(url) in urls
         assert len(urls) == len(scout._urls)
@@ -256,14 +251,28 @@ def test_site_scout_load_urls_from_yml(tmp_path, urls, input_data):
         ("a.b:1234/c", "http://a.b:1234/c"),
         # port, path, parameters, query and fragment
         ("a.b/c;p?q=1&q2#f", "http://a.b/c;p?q=1&q2#f"),
+        # normalizing domain and scheme
+        ("hTTps://A.B.C/eFg1", "https://a.b.c/eFg1"),
     ],
 )
-def test_site_scout_add_url(url, result):
-    """test SiteScout.add_url()"""
+def test_site_scout_load_str(url, result):
+    """test SiteScout.load_str()"""
     with SiteScout(None) as scout:
-        scout.add_url(url)
+        scout.load_str(url)
         assert scout._urls
         assert result in str(scout._urls[0])
+
+
+def test_site_scout_load_collision():
+    """test loading an existing URL"""
+    existing = "a.b.c"
+    with SiteScout(None) as scout:
+        scout.load_str(existing)
+        assert len(scout._urls) == 1
+        scout.load_str(existing)
+        assert len(scout._urls) == 1
+        scout.load_dict({"b.c": {"a": ["/"]}})
+        assert len(scout._urls) == 1
 
 
 @mark.parametrize(
