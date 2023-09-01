@@ -13,7 +13,6 @@ from typing import Any, Dict, Iterator, List, Optional
 from urllib.parse import urlparse
 
 from ffpuppet import BrowserTimeoutError, Debugger, FFPuppet, LaunchError, Reason
-from yaml import safe_load
 
 from .reporter import FuzzManagerReporter
 
@@ -187,33 +186,6 @@ class SiteScout:
     def __exit__(self, *exc: Any) -> None:
         self.close()
 
-    def add_url(self, url: str) -> None:
-        """Parse, sanitize and add a URL to list of URLs to visit.
-
-        Args:
-            url: Location to visit.
-
-        Returns:
-            None
-        """
-        assert url
-        if "://" in url:
-            scheme = url.lower().split("://", maxsplit=1)[0]
-            if scheme not in ("http", "https"):
-                raise ValueError(f"Unsupported scheme in URL: {scheme}")
-        else:
-            url = f"http://{url}"
-        parsed = urlparse(url)
-        path = parsed.path if parsed.path else "/"
-        if parsed.params:
-            path = f"{path};{parsed.params}"
-        if parsed.query:
-            path = f"{path}?{parsed.query}"
-        if parsed.fragment:
-            path = f"{path}#{parsed.fragment}"
-        # this currently does not separate domain and subdomain
-        self._urls.append(URL(parsed.netloc, path=path, scheme=parsed.scheme))
-
     def close(self) -> None:
         """Close and cleanup.
 
@@ -277,41 +249,73 @@ class SiteScout:
 
         self._active.append(Visit(ffp, url))
 
-    def load_urls_from_yml(self, src: Path) -> None:
-        """Load URLs from a YAML file.
+    def load_dict(self, data: Dict[str, Dict[str, List[str]]]) -> None:
+        """Load URLs from a dict add to list of URLs to visit.
 
         Args:
-            src: File containing URLs.
+            data: Dictionary containing URLs.
 
         Returns:
             None
         """
-        LOG.debug("loading '%s'", src)
-        with src.open("r") as in_fp:
-            domains = safe_load(in_fp)
-
-        urls: List[URL] = []
-        # build URLs
-        for domain in domains:
-            assert domains[domain], f"invalid domain entry {domain!r}"
-            for sub in domains[domain]:
-                assert domains[domain][sub], f"invalid subdomain entry {sub!r}"
-                for path in domains[domain][sub]:
+        total_domains = 0
+        total_subdomains = 0
+        total_urls = 0
+        while data:
+            domain, subdomain = data.popitem()
+            assert subdomain, f"invalid domain entry {domain!r}"
+            total_domains += 1
+            for sub in subdomain:
+                assert subdomain[sub], f"invalid subdomain entry {sub!r}"
+                total_subdomains += 1
+                for path in subdomain[sub]:
                     # "*" indicates no subdomain
                     url = URL(
                         domain,
                         subdomain=sub if sub != "*" else None,
                         path=path,
                     )
-                    urls.append(url)
                     LOG.debug("-> '%s'", url)
+                    # this might get slow with large lists
+                    if url.uid not in (x.uid for x in self._urls):
+                        self._urls.append(url)
+                    total_urls += 1
         LOG.debug(
-            "%d domain(s), %d subdomain(s), %d URL(s) loaded",
-            len(domains),
-            sum(len(d) for d in domains.values()),
-            len(urls),
+            "%d domain(s), %d subdomain(s), %d URL(s) processed",
+            total_domains,
+            total_subdomains,
+            total_urls,
         )
-        self._urls = urls
+
+    def load_str(self, url: str) -> None:
+        """Parse, sanitize and add a URL to list of URLs to visit.
+
+        Args:
+            url: Location to visit.
+
+        Returns:
+            None
+        """
+        assert url
+        if "://" in url:
+            scheme = url.lower().split("://", maxsplit=1)[0]
+            if scheme not in ("http", "https"):
+                raise ValueError(f"Unsupported scheme in URL: {scheme}")
+        else:
+            url = f"http://{url}"
+        parsed = urlparse(url)
+        path = parsed.path if parsed.path else "/"
+        if parsed.params:
+            path = f"{path};{parsed.params}"
+        if parsed.query:
+            path = f"{path}?{parsed.query}"
+        if parsed.fragment:
+            path = f"{path}#{parsed.fragment}"
+        # this currently does not separate domain and subdomain
+        formatted = URL(parsed.netloc.lower(), path=path, scheme=parsed.scheme)
+        # this might get slow with large lists
+        if formatted.uid not in (x.uid for x in self._urls):
+            self._urls.append(formatted)
 
     def _process_active(
         self,

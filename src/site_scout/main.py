@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from ffpuppet import Debugger
 from prefpicker import PrefPicker
+from yaml import safe_load
 
 from .args import parse_args
 from .site_scout import SiteScout
@@ -78,9 +79,11 @@ def main(argv: Optional[List[str]] = None) -> None:
             fuzzmanager=args.fuzzmanager,
         ) as scout:
             if args.input:
-                scout.load_urls_from_yml(args.input)
+                LOG.debug("loading '%s'", args.input)
+                with args.input.open("r") as in_fp:
+                    scout.load_dict(safe_load(in_fp))
             elif args.url:
-                scout.add_url(args.url)
+                scout.load_str(args.url)
             scout.run(
                 args.output_path,
                 args.time_limit,
