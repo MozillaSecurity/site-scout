@@ -395,6 +395,23 @@ class SiteScout:
                 yield dst
             visit.puppet.clean_up()
 
+    def schedule_urls(self, url_limit: int = 0, randomize: bool = True) -> None:
+        """Prepare URL list. Randomize and limit size as needed.
+
+        Args:
+            url_limit: Limit total URLs when value is greater than zero.
+            shuffle_urls: Randomly order URLs visits.
+
+        Returns:
+            None.
+        """
+        assert url_limit >= 0
+        if randomize:
+            shuffle(self._urls)
+        if url_limit and len(self._urls) > url_limit:
+            LOG.info("Enforcing URL limit (%d -> %d)", len(self._urls), url_limit)
+            self._urls = self._urls[:url_limit]
+
     # pylint: disable=too-many-locals
     def run(
         self,
@@ -403,7 +420,6 @@ class SiteScout:
         check_delay: float = 1.0,
         domain_rate_limit: int = 20,
         instance_limit: int = 1,
-        shuffle_urls: bool = True,
         status_report: Optional[Path] = None,
     ) -> None:
         """Iterate over and visit each URL. Each visit is performed in a new browser
@@ -415,7 +431,6 @@ class SiteScout:
             check_delay: Time in seconds between checking for results.
             domain_rate_limit: Minimum time is seconds between visiting the same domain.
             instance_limit: Maximum number of browser sessions to run at once.
-            shuffle_urls: Randomly order URLs visits.
             status_report: File to populate with status report data.
 
         Returns:
@@ -424,9 +439,6 @@ class SiteScout:
         assert check_delay >= 0
         assert domain_rate_limit >= 0
         assert instance_limit > 0
-
-        if shuffle_urls:
-            shuffle(self._urls)
 
         last_visit: Dict[str, float] = {}
         next_url: Optional[URL] = None
