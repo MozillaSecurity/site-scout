@@ -39,9 +39,14 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
-        "-i", "--input", type=Path, help="File containing URLs to visit."
+        "-i",
+        "--input",
+        default=[],
+        nargs="+",
+        type=Path,
+        help="File(s) containing URLs to visit.",
     )
-    group.add_argument("-u", "--url", help="Single URL to visit.")
+    group.add_argument("-u", "--url", default=[], nargs="+", help="URL(s) to visit.")
 
     display_choices = ["headless"]
     if system() == "Linux":
@@ -134,8 +139,9 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
     if not args.binary.is_file():
         parser.error(f"binary does not exist: '{args.binary}'")
 
-    if args.input and not args.input.is_file():
-        parser.error(f"-i/--input does not exist: '{args.input}'")
+    for in_file in args.input:
+        if not in_file.is_file():
+            parser.error(f"-i/--input does not exist: '{in_file}'")
 
     if not args.output_path.is_dir():
         parser.error(f"-o/--output-path does not exist: '{args.output_path}'")

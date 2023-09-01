@@ -78,12 +78,12 @@ def main(argv: Optional[List[str]] = None) -> None:
             cert_files=None,
             fuzzmanager=args.fuzzmanager,
         ) as scout:
-            if args.input:
-                LOG.debug("loading '%s'", args.input)
-                with args.input.open("r") as in_fp:
+            for in_file in args.input:
+                LOG.debug("loading '%s'", in_file)
+                with in_file.open("r") as in_fp:
                     scout.load_dict(safe_load(in_fp))
-            elif args.url:
-                scout.load_str(args.url)
+            for in_url in args.url:
+                scout.load_str(in_url)
             scout.run(
                 args.output_path,
                 args.time_limit,
