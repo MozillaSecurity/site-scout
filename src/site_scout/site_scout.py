@@ -262,17 +262,15 @@ class SiteScout:
         total_subdomains = 0
         total_urls = 0
         while data:
-            domain, subdomain = data.popitem()
-            assert subdomain, f"invalid domain entry {domain!r}"
+            domain, subdomains = data.popitem()
             total_domains += 1
-            for sub in subdomain:
-                assert subdomain[sub], f"invalid subdomain entry {sub!r}"
+            for subdomain, paths in subdomains.items():
                 total_subdomains += 1
-                for path in subdomain[sub]:
+                for path in paths:
                     # "*" indicates no subdomain
                     url = URL(
                         domain,
-                        subdomain=sub if sub != "*" else None,
+                        subdomain=subdomain if subdomain != "*" else None,
                         path=path,
                     )
                     LOG.debug("-> '%s'", url)
@@ -403,7 +401,7 @@ class SiteScout:
             shuffle_urls: Randomly order URLs visits.
 
         Returns:
-            None.
+            None
         """
         assert url_limit >= 0
         if randomize:
