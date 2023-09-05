@@ -20,6 +20,10 @@ from .site_scout import URL, SiteScout, Status, verify_dict
         ("a.c", None, "/d", "http", "http://a.c/d"),
         # more complex
         ("a.c:1337", "x.y", "/1/2/3.html", "https", "https://x.y.a.c:1337/1/2/3.html"),
+        # normalize case (domain and subdomain only)
+        ("aB.cD", "Ab", "/Ef", "HTTP", "http://ab.ab.cd/Ef"),
+        # normalize case (missing subdomain)
+        ("aB.cD", None, "/Ef", "HTTP", "http://ab.cd/Ef"),
     ],
 )
 def test_url_01(domain, subdomain, path, scheme, expected):
@@ -222,6 +226,8 @@ def test_site_scout_run(mocker, tmp_path, urls, reason, jobs, reports, use_fm, s
         ([], {}),
         # load urls
         (["http://a.c/", "http://b.a.c/d"], {"a.c": {"*": ["/"], "b": ["/d"]}}),
+        # normalizing
+        (["http://b.a.c/D"], {"A.C": {"B": ["/D"]}}),
     ],
 )
 def test_site_scout_load_dict(urls, input_data):
@@ -252,7 +258,7 @@ def test_site_scout_load_dict(urls, input_data):
         # port, path, parameters, query and fragment
         ("a.b/c;p?q=1&q2#f", "http://a.b/c;p?q=1&q2#f"),
         # normalizing domain and scheme
-        ("hTTps://A.B.C/eFg1", "https://a.b.c/eFg1"),
+        ("HTTPS://A.B.C/eFg1", "https://a.b.c/eFg1"),
     ],
 )
 def test_site_scout_load_str(url, result):
