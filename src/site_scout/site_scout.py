@@ -517,3 +517,36 @@ class SiteScout:
                 force=True,
             )
         LOG.info("URLs visited %d, results reported %d", total_visits, total_results)
+
+
+# pylint: disable=too-many-return-statements
+def verify_dict(data: Any) -> Optional[str]:
+    """Verify the structure of data.
+
+    Args:
+        data: Dictionary to check.
+
+    Return:
+        An error message is returned if an problem is found.
+    """
+    if not isinstance(data, dict):
+        return "Invalid data"
+    if not data:
+        return "No data found"
+    # check domains
+    for domain, subdomains in data.items():
+        if not isinstance(domain, str) or not domain:
+            return "Domain must be a string"
+        if not isinstance(subdomains, dict) or not subdomains:
+            return f"Invalid domain entry: '{domain}'"
+        # check subdomains
+        for subdomain, paths in subdomains.items():
+            if not isinstance(subdomain, str) or not subdomain:
+                return "Subdomain must be a string"
+            if not isinstance(paths, list) or not paths:
+                return f"Invalid subdomain entry: '{subdomain}' in '{domain}'"
+            # check paths
+            for path in paths:
+                if not isinstance(path, str) or not path.startswith("/"):
+                    return "Path must be a string starting with '/'"
+    return None

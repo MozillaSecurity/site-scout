@@ -145,9 +145,9 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
     if not args.binary.is_file():
         parser.error(f"binary does not exist: '{args.binary}'")
 
-    for in_file in args.input:
-        if not in_file.is_file():
-            parser.error(f"-i/--input does not exist: '{in_file}'")
+    for in_path in args.input:
+        if not in_path.exists():
+            parser.error(f"-i/--input does not exist: '{in_path}'")
 
     if not args.output_path.is_dir():
         parser.error(f"-o/--output-path does not exist: '{args.output_path}'")

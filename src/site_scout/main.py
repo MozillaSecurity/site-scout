@@ -4,14 +4,16 @@
 from logging import DEBUG, basicConfig, getLogger
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import List, Optional
+from typing import Dict, Iterator, List, Optional
 
 from ffpuppet import Debugger
 from prefpicker import PrefPicker
 from yaml import safe_load
+from yaml.parser import ParserError
+from yaml.scanner import ScannerError
 
 from .args import parse_args
-from .site_scout import SiteScout
+from .site_scout import SiteScout, verify_dict
 
 LOG = getLogger(__name__)
 
@@ -52,6 +54,46 @@ def generate_prefs(dst: Optional[Path] = None, variant: str = "a11y") -> Path:
     return prefs
 
 
+def load_input(src: List[Path]) -> Iterator[Dict[str, Dict[str, List[str]]]]:
+    """Load data from filesystem.
+
+    Arguments:
+        src: Files and directories to load data from.
+
+    Yields:
+        URL data.
+    """
+    for entry in scan_input(src):
+        LOG.debug("loading '%s'", entry)
+        with entry.open("r") as in_fp:
+            try:
+                data = safe_load(in_fp)
+            except (ParserError, ScannerError):
+                LOG.warning("Load failure - Invalid yml (ignored: %s)", entry)
+                continue
+        err_msg = verify_dict(data)
+        if err_msg:
+            LOG.warning("Load failure - %s (ignored: %s)", err_msg, entry)
+            continue
+        yield data
+
+
+def scan_input(src: List[Path]) -> Iterator[Path]:
+    """Scan list of inputs which can include files or directories.
+
+    Arguments:
+        src: Paths the evaluate.
+
+    Yields:
+        URL files to load.
+    """
+    for entry in src:
+        if entry.resolve().is_dir():
+            yield from entry.glob("*.yml")
+        else:
+            yield entry
+
+
 def main(argv: Optional[List[str]] = None) -> None:
     """Main function"""
     args = parse_args(argv)
@@ -78,10 +120,8 @@ def main(argv: Optional[List[str]] = None) -> None:
             cert_files=None,
             fuzzmanager=args.fuzzmanager,
         ) as scout:
-            for in_file in args.input:
-                LOG.debug("loading '%s'", in_file)
-                with in_file.open("r") as in_fp:
-                    scout.load_dict(safe_load(in_fp))
+            for data in load_input(args.input):
+                scout.load_dict(data)
             for in_url in args.url:
                 scout.load_str(in_url)
             scout.schedule_urls(url_limit=args.url_limit)

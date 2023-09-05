@@ -8,7 +8,7 @@ from itertools import chain, count, cycle, repeat
 from ffpuppet import LaunchError, Reason
 from pytest import mark, raises
 
-from .site_scout import URL, SiteScout, Status
+from .site_scout import URL, SiteScout, Status, verify_dict
 
 
 @mark.parametrize(
@@ -333,3 +333,29 @@ def test_site_scout_schedule_urls(size, limit, randomize):
             assert len(scout._urls) == limit
         else:
             assert len(scout._urls) == size
+
+
+@mark.parametrize(
+    "data, msg",
+    [
+        # empty
+        ({}, "No data found"),
+        # not a dict
+        ([], "Invalid data"),
+        # valid
+        ({"d": {"s": ["/"]}}, None),
+        # empty domain name
+        ({"": {"s": ["/"]}}, "Domain must be a string"),
+        # empty domain entry
+        ({"d": {}}, "Invalid domain entry: 'd'"),
+        # empty subdomain name
+        ({"d": {"": ["/"]}}, "Subdomain must be a string"),
+        # empty subdomain entry
+        ({"d": {"s": []}}, "Invalid subdomain entry: 's' in 'd'"),
+        # empty path entry
+        ({"d": {"s": [""]}}, "Path must be a string starting with '/'"),
+    ],
+)
+def test_verify_dict(data, msg):
+    """test verify_dict()"""
+    assert verify_dict(data) == msg

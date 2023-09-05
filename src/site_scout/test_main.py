@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 from pytest import mark
 
-from .main import generate_prefs, main
+from .main import generate_prefs, load_input, main
 
 
 @mark.parametrize(
@@ -36,3 +36,32 @@ def test_main_01(mocker, tmp_path, args):
 def test_generate_prefs_01(tmp_path):
     """test generate_prefs()"""
     assert generate_prefs(dst=tmp_path).is_file()
+
+
+def test_load_input_01(tmp_path):
+    """test load_input()"""
+    # empty list
+    assert not list(load_input([]))
+    # empty directory
+    assert not list(load_input([tmp_path]))
+
+    valid = "{'d':{'s':['/']}}"
+    # single input file
+    in_file = tmp_path / "sites.yml"
+    in_file.write_text(valid)
+    results = list(load_input([in_file]))
+    assert len(results) == 1
+    # multiple input files
+    results = list(load_input([in_file, in_file]))
+    assert len(results) == 2
+    # single input directory
+    results = list(load_input([tmp_path]))
+    assert len(results) == 1
+
+    # invalid file data
+    (tmp_path / "ignore.txt").write_text("foo")
+    (tmp_path / "bad.yml").write_text("{-")
+    (tmp_path / "sites.yml").write_text(valid)
+    (tmp_path / "a.yml").write_text("foo")
+    results = list(load_input([tmp_path]))
+    assert len(results) == 1
