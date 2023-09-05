@@ -83,11 +83,11 @@ class URL:
     ):
         assert domain
         assert path.startswith("/")
-        assert scheme in ("http", "https")
         assert subdomain is None or subdomain
-        self.domain = domain
-        self.scheme = scheme
-        self.subdomain = subdomain
+        self.domain = domain.lower()
+        self.scheme = scheme.lower()
+        assert self.scheme in ("http", "https")
+        self.subdomain = subdomain.lower() if subdomain else None
         self.path = path
         self._uid: Optional[str] = None
 
@@ -296,8 +296,8 @@ class SiteScout:
         """
         assert url
         if "://" in url:
-            scheme = url.lower().split("://", maxsplit=1)[0]
-            if scheme not in ("http", "https"):
+            scheme = url.split("://", maxsplit=1)[0]
+            if scheme.lower() not in ("http", "https"):
                 raise ValueError(f"Unsupported scheme in URL: {scheme}")
         else:
             url = f"http://{url}"
@@ -310,7 +310,7 @@ class SiteScout:
         if parsed.fragment:
             path = f"{path}#{parsed.fragment}"
         # this currently does not separate domain and subdomain
-        formatted = URL(parsed.netloc.lower(), path=path, scheme=parsed.scheme)
+        formatted = URL(parsed.netloc, path=path, scheme=parsed.scheme)
         # this might get slow with large lists
         if formatted.uid not in (x.uid for x in self._urls):
             self._urls.append(formatted)
