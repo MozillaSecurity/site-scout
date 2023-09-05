@@ -261,12 +261,19 @@ def test_site_scout_load_dict(urls, input_data):
         ("HTTPS://A.B.C/eFg1", "https://a.b.c/eFg1"),
     ],
 )
-def test_site_scout_load_str(url, result):
+def test_site_scout_load_str_01(url, result):
     """test SiteScout.load_str()"""
     with SiteScout(None) as scout:
         scout.load_str(url)
         assert scout._urls
         assert result in str(scout._urls[0])
+
+
+def test_site_scout_load_str_02():
+    """test SiteScout.load_str() invalid scheme"""
+    with SiteScout(None) as scout:
+        with raises(ValueError):
+            scout.load_str("ftp://a.b.c")
 
 
 def test_site_scout_load_collision():
