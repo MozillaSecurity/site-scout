@@ -31,7 +31,7 @@ class FuzzManagerReporter:
         self._working_path = working_path
 
         if fm_config and not fm_config.is_file():
-            raise OSError(f"Missing: {fm_config}")
+            raise FileNotFoundError(f"Missing: {fm_config}")
 
         # create ProgramConfiguration that can be reported to a FM server
         if Path(f"{binary}.fuzzmanagerconf").is_file():

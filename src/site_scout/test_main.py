@@ -28,9 +28,19 @@ def test_main_01(mocker, tmp_path, args):
     # -i or -u is required
     if "-u" not in args:
         data = tmp_path / "data.yml"
-        data.write_text("{}")
+        data.write_text("{'d':{'s':['/']}}")
         default_args.extend(["-i", str(data)])
     main(default_args + args)
+
+
+def test_main_02(mocker, tmp_path):
+    """test main() KeyboardInterrupt"""
+    mocker.patch(
+        "site_scout.main.SiteScout", autospec=True, side_effect=KeyboardInterrupt()
+    )
+    fake_bin = tmp_path / "fake_browser_bin"
+    fake_bin.touch()
+    main([str(fake_bin), "-u", "a.b.c"])
 
 
 def test_generate_prefs_01(tmp_path):

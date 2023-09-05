@@ -2,7 +2,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-from pytest import mark
+from pytest import mark, raises
 
 from .reporter import FuzzManagerReporter
 
@@ -49,3 +49,10 @@ def test_fuzzmanager_reporter_01(tmp_path, mocker, include_cfg, aux_log):
     reporter = FuzzManagerReporter(empty, fm_config=fm_config)
     assert reporter.submit(result)
     assert collector.return_value.submit.call_count == 1
+
+
+def test_fuzzmanager_reporter_02(tmp_path):
+    """test FuzzManagerReporter missing fuzzmanagerconf"""
+
+    with raises(FileNotFoundError):
+        FuzzManagerReporter(tmp_path, fm_config=tmp_path / "missing")
