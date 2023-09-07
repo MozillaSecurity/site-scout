@@ -46,3 +46,26 @@ def test_args_02(capsys, tmp_path):
     with raises(SystemExit):
         parse_args([str(dummy_file), "-i", str(dummy_file), "--memory-limit", "-1"])
     assert "--memory-limit must be >= 0" in capsys.readouterr()[-1]
+
+
+def test_args_03(mocker, capsys, tmp_path):
+    """test parse_args() rr/pernosco checks"""
+    mocker.patch("site_scout.args.system", autospec=True, return_value="Linux")
+    fake_which = mocker.patch("site_scout.args.which", autospec=True)
+    dummy_file = tmp_path / "dummy_file"
+    dummy_file.touch()
+
+    with raises(SystemExit):
+        parse_args([str(dummy_file), "-u", "foo", "--rr", "--fuzzmanager"])
+    assert "rr not supported with --fuzzmanager" in capsys.readouterr()[-1]
+
+    fake_which.return_value = None
+    with raises(SystemExit):
+        parse_args([str(dummy_file), "-u", "foo", "--rr"])
+    assert "rr is not installed" in capsys.readouterr()[-1]
+
+    fake_which.return_value = "rr"
+    mocker.patch("site_scout.args.Path.read_bytes", autospec=True, return_value=b"99")
+    with raises(SystemExit):
+        parse_args([str(dummy_file), "-u", "foo", "--rr"])
+    assert "perf_event_paranoid <= 1, but it is 99" in capsys.readouterr()[-1]

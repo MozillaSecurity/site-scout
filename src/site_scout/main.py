@@ -6,7 +6,6 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Dict, Iterator, List, Optional
 
-from ffpuppet import Debugger
 from prefpicker import PrefPicker
 from yaml import safe_load
 from yaml.parser import ParserError
@@ -111,7 +110,7 @@ def main(argv: Optional[List[str]] = None) -> None:
             args.binary,
             profile=args.profile,
             prefs_js=args.prefs,
-            debugger=Debugger.NONE,
+            debugger=args.debugger,
             display="default" if args.display == "headless" else args.display,
             launch_timeout=args.launch_timeout,
             log_limit=args.log_limit,
