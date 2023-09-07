@@ -96,6 +96,7 @@ def scan_input(src: List[Path]) -> Iterator[Path]:
 def main(argv: Optional[List[str]] = None) -> None:
     """Main function"""
     args = parse_args(argv)
+    assert any(args.input) != any(args.url)
     init_logging(args.log_level)
 
     tmp_prefs = False
@@ -123,7 +124,8 @@ def main(argv: Optional[List[str]] = None) -> None:
                 scout.load_dict(data)
             for in_url in args.url:
                 scout.load_str(in_url)
-            scout.schedule_urls(url_limit=args.url_limit)
+            # don't randomize urls passed on the command line
+            scout.schedule_urls(url_limit=args.url_limit, randomize=any(args.input))
             scout.run(
                 args.output_path,
                 args.time_limit,
