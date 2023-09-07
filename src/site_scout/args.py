@@ -7,7 +7,10 @@ from logging import DEBUG, INFO
 from os import getenv
 from pathlib import Path
 from platform import system
+from shutil import which
 from typing import List, Optional
+
+from ffpuppet import Debugger
 
 try:
     __version__ = version("site-scout")
@@ -30,6 +33,7 @@ def is_headless() -> bool:
     )
 
 
+# pylint: disable=too-many-branches,too-many-statements
 def parse_args(argv: Optional[List[str]] = None) -> Namespace:
     """Argument parsing"""
     parser = ArgumentParser(
@@ -127,7 +131,36 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
         help="Show version number.",
     )
 
+    parser.set_defaults(debugger=Debugger.NONE)
+    if system() == "Linux":
+        dbg_group = parser.add_mutually_exclusive_group()
+        dbg_group.add_argument(
+            "--pernosco",
+            action="store_const",
+            const=Debugger.PERNOSCO,
+            dest="debugger",
+            help="Use rr. Trace intended to be used with Pernosco.",
+        )
+        dbg_group.add_argument(
+            "--rr",
+            action="store_const",
+            const=Debugger.RR,
+            dest="debugger",
+            help="Use rr.",
+        )
+
     args = parser.parse_args(argv)
+
+    if args.debugger in (Debugger.PERNOSCO, Debugger.RR):
+        if args.fuzzmanager:
+            parser.error("rr not supported with --fuzzmanager")
+        # rr is only supported on Linux
+        if not which("rr"):
+            parser.error("rr is not installed")
+        settings = "/proc/sys/kernel/perf_event_paranoid"
+        value = int(Path(settings).read_bytes())
+        if value > 1:
+            parser.error(f"rr needs {settings} <= 1, but it is {value}")
 
     if args.jobs < 1:
         parser.error("--jobs must be >= 1")
