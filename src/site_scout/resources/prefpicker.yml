@@ -18,6 +18,12 @@ pref:
     variants:
       default:
       - false
+  # randomly enable private browsing mode
+  browser.privatebrowsing.autostart:
+    variants:
+      default:
+      - false
+      - true
   browser.safebrowsing.blockedURIs.enabled:
     variants:
       default:
