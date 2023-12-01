@@ -119,6 +119,11 @@ pref:
     variants:
       default:
       - false
+  # use DoH if possible
+  network.trr.mode:
+    variants:
+      default:
+      - 2
   permissions.default.camera:
     variants:
       default:
