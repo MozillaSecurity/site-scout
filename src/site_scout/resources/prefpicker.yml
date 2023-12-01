@@ -48,11 +48,6 @@ pref:
     variants:
       default:
       - false
-  # TODO: this can be removed (browser.startup.page=0 does the job)?
-  browser.startup.homepage:
-    variants:
-      default:
-      - about:blank
   browser.startup.homepage_override.mstone:
     variants:
       default:
