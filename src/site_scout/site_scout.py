@@ -320,7 +320,7 @@ class SiteScout:
         time_limit: float,
         idle_usage: int = 10,
         idle_wait: float = 10.0,
-        min_visit: int = 5,
+        min_visit: int = 20,
     ) -> None:
         """Check active browser processes and move complete visits from the active
         to the complete queue.
@@ -329,7 +329,7 @@ class SiteScout:
             time_limit: Maximum time to wait for a site to load.
             idle_usage: Maximum CPU usage to be considered idle.
             idle_wait: Amount of time in seconds process must be idle.
-            min_visit: Delay in seconds before checking for idle.
+            min_visit: Delay in seconds before idle checks begin.
 
         Returns:
             None
