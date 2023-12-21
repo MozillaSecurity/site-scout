@@ -10,7 +10,7 @@ from shutil import rmtree
 from tempfile import gettempdir
 from time import gmtime, sleep, strftime, time
 from typing import Any, Dict, Iterator, List, Optional
-from urllib.parse import urlparse
+from urllib.parse import urlsplit
 
 from ffpuppet import BrowserTimeoutError, Debugger, FFPuppet, LaunchError, Reason
 
@@ -301,14 +301,10 @@ class SiteScout:
                 raise ValueError(f"Unsupported scheme in URL: {scheme}")
         else:
             url = f"http://{url}"
-        parsed = urlparse(url)
+        parsed = urlsplit(url, allow_fragments=False)
         path = parsed.path if parsed.path else "/"
-        if parsed.params:
-            path = f"{path};{parsed.params}"
         if parsed.query:
             path = f"{path}?{parsed.query}"
-        if parsed.fragment:
-            path = f"{path}#{parsed.fragment}"
         # this currently does not separate domain and subdomain
         formatted = URL(parsed.netloc, path=path, scheme=parsed.scheme)
         # this might get slow with large lists
