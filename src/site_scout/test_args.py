@@ -47,6 +47,10 @@ def test_args_02(capsys, tmp_path):
         parse_args([str(dummy_file), "-i", str(dummy_file), "--memory-limit", "-1"])
     assert "--memory-limit must be >= 0" in capsys.readouterr()[-1]
 
+    with raises(SystemExit):
+        parse_args([str(dummy_file), "-i", str(dummy_file), "--time-limit", "-1"])
+    assert "--time-limit must be > 0" in capsys.readouterr()[-1]
+
 
 def test_args_03(mocker, capsys, tmp_path):
     """test parse_args() rr/pernosco checks"""
