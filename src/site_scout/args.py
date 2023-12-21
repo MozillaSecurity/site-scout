@@ -18,6 +18,9 @@ except PackageNotFoundError:  # pragma: no cover
     # package is not installed
     __version__ = "unknown"
 
+TIME_LIMIT_DEBUG = 300
+TIME_LIMIT_DEFAULT = 120
+
 
 def is_headless() -> bool:
     """Detect if running in a headless environment.
@@ -114,8 +117,7 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
     parser.add_argument(
         "--time-limit",
         type=int,
-        default=120,
-        help="Page load time limit in seconds (default: %(default)s).",
+        help=f"Page load time limit in seconds (default: {TIME_LIMIT_DEFAULT}).",
     )
     parser.add_argument(
         "--url-limit",
@@ -150,6 +152,14 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
         )
 
     args = parser.parse_args(argv)
+
+    if args.time_limit is None:
+        if args.debugger == Debugger.NONE:
+            args.time_limit = TIME_LIMIT_DEFAULT
+        else:
+            args.time_limit = TIME_LIMIT_DEBUG
+    if args.time_limit < 1:
+        parser.error("--time-limit must be > 0 (recommended minimum: 30)")
 
     if args.debugger in (Debugger.PERNOSCO, Debugger.RR):
         if args.fuzzmanager:
