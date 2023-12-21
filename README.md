@@ -6,7 +6,7 @@ Site Scout
 
 Site Scout is a tool that can identify and report issues that are triggered in the wild.
 A URL or a collection of URLs to visit must be provided. The collection is iterated over
-and each URL is visited. Any results are collected and reported.
+and each URL is visited. All results are collected and reported.
 
 The primary goal is to locate issues such as crashes, assertion failures and other
 issues detected by AddressSanitizer, UndefinedBehaviourSanitizer and ThreadSanitizer.
@@ -15,12 +15,16 @@ Usage
 -----
 
 Visit a collections of URLs:
-```python3 -m site_scout <firefox-bin> -i <urls.yml>```
+```
+python3 -m site_scout <firefox-bin> -i <urls.yml>
+```
 
 -or-
 
-Visit a single URL (typically used to reproduce an issue):
-```python3 -m site_scout <firefox-bin> -u <url>```
+Visit one or more URLs (typically used to reproduce an issue):
+```
+python3 -m site_scout <firefox-bin> -u <url> [<url> ...]
+```
 
 Input Format
 ------------
