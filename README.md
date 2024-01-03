@@ -6,10 +6,9 @@ Site Scout
 [![PyPI](https://img.shields.io/pypi/v/site-scout)](https://pypi.org/project/site-scout)
 
 Site Scout is a tool that can identify and report issues that are triggered in the wild.
-A URL or a collection of URLs to visit must be provided. The collection is iterated over
-and each URL is visited. All results are collected and reported.
+A URL or a collection of URLs must be provided. All results are collected and reported.
 
-The primary goal is to locate issues such as crashes, assertion failures and other
+The primary goal is to find issues such as crashes, assertion failures and other
 issues detected by AddressSanitizer, UndefinedBehaviourSanitizer and ThreadSanitizer.
 
 Installation
@@ -24,7 +23,7 @@ python3 -m pip install site-scout --upgrade
 Usage
 -----
 
-Visit a collections of URLs:
+Visit a collection of URLs:
 ```
 python3 -m site_scout <firefox-bin> -i <urls>.yml [<urls>.yml ...]
 ```
