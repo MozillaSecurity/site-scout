@@ -57,6 +57,10 @@ pref:
     variants:
       default:
       - 0
+  browser.translations.automaticallyPopup:
+    variants:
+      default:
+      - false
   cookiebanners.service.mode:
     variants:
       default:
