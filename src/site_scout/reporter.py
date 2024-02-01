@@ -27,7 +27,7 @@ class FuzzManagerReporter:
         binary: Path,
         fm_config: Path = FM_CONFIG,
         working_path: Optional[Path] = None,
-    ):
+    ) -> None:
         self._working_path = working_path
 
         if fm_config and not fm_config.is_file():
