@@ -423,7 +423,7 @@ class SiteScout:
             log_path: Location to write results.
             time_limit: Maximum time in seconds of a site visit.
             check_delay: Time in seconds between checking for results.
-            domain_rate_limit: Minimum time is seconds between visiting the same domain.
+            domain_rate_limit: Minimum time in seconds between visiting the same domain.
             instance_limit: Maximum number of browser sessions to run at once.
             status_report: File to populate with status report data.
 
