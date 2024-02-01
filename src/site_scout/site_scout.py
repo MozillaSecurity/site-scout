@@ -26,7 +26,7 @@ class Status:
 
     __slots__ = ("_dst", "_next", "_rate_limit", "_start")
 
-    def __init__(self, dst: Path, rate_limit: int = 60):
+    def __init__(self, dst: Path, rate_limit: int = 60) -> None:
         assert dst
         assert rate_limit >= 0
         self._dst = dst
@@ -80,7 +80,7 @@ class URL:
         subdomain: Optional[str] = None,
         path: str = "/",
         scheme: str = "http",
-    ):
+    ) -> None:
         assert domain
         assert path.startswith("/")
         assert subdomain is None or subdomain
@@ -118,7 +118,9 @@ class Visit:
 
     __slots__ = ("idle_timestamp", "puppet", "url", "timestamp")
 
-    def __init__(self, puppet: FFPuppet, url: URL, timestamp: Optional[float] = None):
+    def __init__(
+        self, puppet: FFPuppet, url: URL, timestamp: Optional[float] = None
+    ) -> None:
         self.idle_timestamp: Optional[float] = None
         self.puppet = puppet
         self.url = url
@@ -160,7 +162,7 @@ class SiteScout:
         extension: Optional[List[Path]] = None,
         cert_files: Optional[List[Path]] = None,
         fuzzmanager: bool = False,
-    ):
+    ) -> None:
         self._active: List[Visit] = []
         self._complete: List[Visit] = []
         self._urls: List[URL] = []
