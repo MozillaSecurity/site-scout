@@ -334,6 +334,10 @@ def test_site_scout_status(
         (10, 0, True),
         # enforce limit
         (10, 2, True),
+        # no limit
+        (10, 0, False),
+        # enforce limit
+        (10, 2, False),
     ],
 )
 def test_site_scout_schedule_urls(size, limit, randomize):
@@ -346,6 +350,9 @@ def test_site_scout_schedule_urls(size, limit, randomize):
             assert len(scout._urls) == limit
         else:
             assert len(scout._urls) == size
+        if not randomize:
+            assert scout._urls[-1] == 0
+            assert scout._urls[0] == (limit - 1) if limit else (size - 1)
 
 
 @mark.parametrize(
