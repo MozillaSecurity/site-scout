@@ -403,10 +403,15 @@ class SiteScout:
         """
         assert url_limit >= 0
         if randomize:
+            # shuffle before enforcing limit so all entries can potentially be included
             shuffle(self._urls)
         if url_limit and len(self._urls) > url_limit:
             LOG.info("Enforcing URL limit (%d -> %d)", len(self._urls), url_limit)
             self._urls = self._urls[:url_limit]
+        if not randomize:
+            # provided url list is processed in reverse order
+            # reverse the list to maintain original order
+            self._urls.reverse()
 
     # pylint: disable=too-many-locals
     def run(
