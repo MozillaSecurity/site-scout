@@ -263,6 +263,8 @@ class SiteScout:
         total_domains = 0
         total_subdomains = 0
         total_urls = 0
+        LOG.debug("processing dict...")
+        existing = {x.uid for x in self._urls}
         while data:
             domain, subdomains = data.popitem()
             total_domains += 1
@@ -275,16 +277,17 @@ class SiteScout:
                         subdomain=subdomain if subdomain != "*" else None,
                         path=path,
                     )
-                    LOG.debug("-> '%s'", url)
-                    # this might get slow with large lists
-                    if url.uid not in (x.uid for x in self._urls):
+                    # avoid duplicates
+                    if url.uid not in existing:
                         self._urls.append(url)
+                        existing.add(url.uid)
                     total_urls += 1
         LOG.debug(
-            "%d domain(s), %d subdomain(s), %d URL(s) processed",
+            "%d domain(s), %d subdomain(s), %d URL(s) processed, %d loaded",
             total_domains,
             total_subdomains,
             total_urls,
+            len(existing),
         )
 
     def load_str(self, url: str) -> None:
@@ -310,7 +313,7 @@ class SiteScout:
         # this currently does not separate domain and subdomain
         formatted = URL(parsed.netloc, path=path, scheme=parsed.scheme)
         # this might get slow with large lists
-        if formatted.uid not in (x.uid for x in self._urls):
+        if formatted.uid not in {x.uid for x in self._urls}:
             self._urls.append(formatted)
 
     def _process_active(
