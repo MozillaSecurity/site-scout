@@ -7,7 +7,13 @@ from tempfile import NamedTemporaryFile
 from typing import Dict, Iterator, List, Optional
 
 from prefpicker import PrefPicker
-from yaml import safe_load
+from yaml import load
+
+try:
+    from yaml import CSafeLoader as SafeLoader
+except ImportError:  # pragma: no cover
+    from yaml import SafeLoader  # type: ignore
+
 from yaml.parser import ParserError
 from yaml.scanner import ScannerError
 
@@ -63,10 +69,10 @@ def load_input(src: List[Path]) -> Iterator[Dict[str, Dict[str, List[str]]]]:
         URL data.
     """
     for entry in scan_input(src):
-        LOG.debug("loading '%s'", entry)
+        LOG.debug("loading '%s'", entry.resolve())
         with entry.open("r") as in_fp:
             try:
-                data = safe_load(in_fp)
+                data = load(in_fp, Loader=SafeLoader)
             except (ParserError, ScannerError):
                 LOG.warning("Load failure - Invalid yml (ignored: %s)", entry)
                 continue
@@ -120,6 +126,7 @@ def main(argv: Optional[List[str]] = None) -> None:
             cert_files=None,
             fuzzmanager=args.fuzzmanager,
         ) as scout:
+            LOG.info("Loading URLs...")
             for data in load_input(args.input):
                 scout.load_dict(data)
             for in_url in args.url:
