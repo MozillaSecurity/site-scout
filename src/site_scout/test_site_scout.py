@@ -8,7 +8,7 @@ from itertools import chain, count, cycle, repeat
 from ffpuppet import LaunchError, Reason
 from pytest import mark, raises
 
-from .site_scout import URL, SiteScout, Status, verify_dict
+from .site_scout import URL, SiteScout, Status, Visit, verify_dict
 
 
 @mark.parametrize(
@@ -44,6 +44,20 @@ def test_site_scout_launch(mocker):
         assert scout._active[0].puppet is not None
         assert scout._active[0].timestamp > 0
         assert scout._active[0].url == "http://someurl/"
+
+
+def test_site_scout_close(mocker):
+    """test SiteScout.close()"""
+    active = mocker.Mock(spec_set=Visit)
+    complete = mocker.Mock(spec_set=Visit)
+    with SiteScout(None) as scout:
+        scout._active = [active]
+        scout._complete = [complete]
+        scout.close()
+        assert not scout._active
+        assert not scout._complete
+    assert active.puppet.clean_up.call_count == 1
+    assert complete.puppet.clean_up.call_count == 1
 
 
 @mark.parametrize(

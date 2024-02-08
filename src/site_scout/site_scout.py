@@ -189,7 +189,7 @@ class SiteScout:
         self.close()
 
     def close(self) -> None:
-        """Close and cleanup.
+        """Close and cleanup browser instances.
 
         Args:
             None
@@ -200,6 +200,10 @@ class SiteScout:
         LOG.debug("closing %d active visit(s)...", len(self._active))
         for visit in self._active:
             visit.puppet.clean_up()
+        self._active.clear()
+        for visit in self._complete:
+            visit.puppet.clean_up()
+        self._complete.clear()
 
     def _launch(self, url: URL, launch_attempts: int = 3) -> None:
         """Launch a new browser instance and visit provided URL.
