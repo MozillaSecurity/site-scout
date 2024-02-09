@@ -9,7 +9,7 @@ from random import shuffle
 from shutil import rmtree
 from tempfile import gettempdir
 from time import gmtime, sleep, strftime, time
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 from urllib.parse import urlsplit
 
 from ffpuppet import BrowserTimeoutError, Debugger, FFPuppet, LaunchError, Reason
@@ -376,7 +376,9 @@ class SiteScout:
                 self._complete.append(self._active.pop(index))
             LOG.debug("%d active, %d complete", len(self._active), len(self._complete))
 
-    def _report(self, log_path: Path, logs_only: bool = False) -> Iterator[Path]:
+    def _report(
+        self, log_path: Path, logs_only: bool = False
+    ) -> Iterator[Tuple[Path, str]]:
         """Save available results to a provided location and cleanup browser data.
 
         Args:
@@ -384,7 +386,7 @@ class SiteScout:
             logs_only: Skip extra debugger results.
 
         Yields:
-            Directory containing a results.
+            Directory containing results and URL of visit.
         """
         while self._complete:
             LOG.debug("%d pending visit(s) to check", len(self._complete))
@@ -395,7 +397,7 @@ class SiteScout:
                 if self._prefs:
                     (dst / "prefs.js").write_text(self._prefs.read_text())
                 (dst / "url.txt").write_text(str(visit.url))
-                yield dst
+                yield dst, str(visit.url)
             visit.puppet.clean_up()
 
     def schedule_urls(self, url_limit: int = 0, randomize: bool = True) -> None:
@@ -481,10 +483,9 @@ class SiteScout:
                 url_str = str(next_url)
                 total_visits += 1
                 LOG.info(
-                    "[%02d/%02d] %s %r",
+                    "[%02d/%02d] %r",
                     total_visits,
                     total_urls,
-                    next_url.uid[:8],
                     f"{url_str[:80]}..." if len(url_str) > 80 else url_str,
                 )
                 self._launch(next_url)
@@ -496,9 +497,9 @@ class SiteScout:
             self._process_active(time_limit)
 
             # report/save results
-            for result in self._report(log_path):
+            for result, url_visited in self._report(log_path):
                 total_results += 1
-                LOG.info("Result found! (%d)", total_results)
+                LOG.info("[%d] Result found visiting %r", total_results, url_visited)
                 if self._fuzzmanager:
                     fm_id, short_sig = self._fuzzmanager.submit(result)
                     LOG.info(
