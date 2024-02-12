@@ -57,6 +57,11 @@ pref:
     variants:
       default:
       - 0
+  # don't fetch sponsored top sites list
+  browser.topsites.contile.enabled:
+    variants:
+      default:
+      - false
   browser.translations.automaticallyPopup:
     variants:
       default:
