@@ -9,7 +9,7 @@ from random import shuffle
 from shutil import rmtree
 from tempfile import gettempdir
 from time import gmtime, sleep, strftime, time
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlsplit
 
 from ffpuppet import BrowserTimeoutError, Debugger, FFPuppet, LaunchError, Reason
@@ -376,29 +376,40 @@ class SiteScout:
                 self._complete.append(self._active.pop(index))
             LOG.debug("%d active, %d complete", len(self._active), len(self._complete))
 
-    def _report(
-        self, log_path: Path, logs_only: bool = False
-    ) -> Iterator[Tuple[Path, str]]:
-        """Save available results to a provided location and cleanup browser data.
+    def _process_complete(self, log_path: Path) -> int:
+        """Report results and remove completed visits.
 
         Args:
             log_path: Directory to save results in.
-            logs_only: Skip extra debugger results.
 
-        Yields:
-            Directory containing results and URL of visit.
+        Returns:
+            Number of results found.
         """
+        results = 0
         while self._complete:
             LOG.debug("%d pending visit(s) to check", len(self._complete))
             visit = self._complete.pop()
             if visit.puppet.reason in (Reason.ALERT, Reason.WORKER):
                 dst = log_path / strftime(f"%Y%m%d-%H%M%S-result-{visit.url.uid[:8]}")
-                visit.puppet.save_logs(dst, logs_only=logs_only)
+                visit.puppet.save_logs(dst)
                 if self._prefs:
                     (dst / "prefs.js").write_text(self._prefs.read_text())
                 (dst / "url.txt").write_text(str(visit.url))
-                yield dst, str(visit.url)
+                results += 1
+                LOG.info("Result found visiting %r", visit.url)
+                if self._fuzzmanager:
+                    fm_id, short_sig = self._fuzzmanager.submit(dst)
+                    LOG.info(
+                        "FuzzManager (%d): %s",
+                        fm_id,
+                        f"{short_sig[:50]}..." if len(short_sig) > 50 else short_sig,
+                    )
+                    # remove local data when reporting to FM
+                    rmtree(dst)
+                else:
+                    LOG.info("Saved as '%s'", dst)
             visit.puppet.clean_up()
+        return results
 
     def schedule_urls(self, url_limit: int = 0, randomize: bool = True) -> None:
         """Prepare URL list. Randomize and limit size as needed.
@@ -495,21 +506,7 @@ class SiteScout:
 
             # check for complete processes
             self._process_active(time_limit)
-
-            # report/save results
-            for result, url_visited in self._report(log_path):
-                total_results += 1
-                LOG.info("[%d] Result found visiting %r", total_results, url_visited)
-                if self._fuzzmanager:
-                    fm_id, short_sig = self._fuzzmanager.submit(result)
-                    LOG.info(
-                        "FuzzManager (%d): %s",
-                        fm_id,
-                        f"{short_sig[:50]}..." if len(short_sig) > 50 else short_sig,
-                    )
-                    rmtree(result)
-                else:
-                    LOG.info("Saved as '%s'", result)
+            total_results += self._process_complete(log_path=log_path)
 
             # wait a moment for work to complete
             if self._urls or self._active:
