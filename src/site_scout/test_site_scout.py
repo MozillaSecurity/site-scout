@@ -153,8 +153,8 @@ def test_site_scout_process_active(
         ([URL("foo")], Reason.WORKER, 1),
     ],
 )
-def test_site_scout_report(mocker, tmp_path, urls, reason, reports):
-    """test SiteScout._report()"""
+def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
+    """test SiteScout._process_complete()"""
 
     # pylint: disable=unused-argument
     def save_logs(dst_path, logs_only=False):
@@ -175,7 +175,8 @@ def test_site_scout_report(mocker, tmp_path, urls, reason, reports):
         assert scout._active or not urls
         scout._process_active(30)
         assert not scout._active
-        assert sum(1 for _ in scout._report(report_dst)) == reports
+        assert len(scout._complete) == len(urls)
+        assert scout._process_complete(report_dst) == reports
     assert sum(1 for _ in report_dst.iterdir()) == reports
 
 
