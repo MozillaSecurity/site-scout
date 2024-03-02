@@ -6,6 +6,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Dict, Iterator, List, Optional
 
+from ffpuppet import LaunchError
 from prefpicker import PrefPicker
 from yaml import load
 
@@ -99,7 +100,7 @@ def scan_input(src: List[Path]) -> Iterator[Path]:
             yield entry
 
 
-def main(argv: Optional[List[str]] = None) -> None:
+def main(argv: Optional[List[str]] = None) -> int:
     """Main function"""
     args = parse_args(argv)
     assert any(args.input) != any(args.url)
@@ -142,7 +143,12 @@ def main(argv: Optional[List[str]] = None) -> None:
     except KeyboardInterrupt:
         LOG.warning("Aborting...")
 
+    except LaunchError:
+        return 1
+
     finally:
         if tmp_prefs:
             args.prefs.unlink()
         LOG.info("Done.")
+
+    return 0

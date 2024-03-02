@@ -5,7 +5,7 @@
 # pylint: disable=missing-docstring,protected-access
 from itertools import chain, count, cycle, repeat
 
-from ffpuppet import LaunchError, Reason
+from ffpuppet import BrowserTerminatedError, Reason
 from pytest import mark, raises
 
 from .site_scout import URL, SiteScout, Status, Visit, verify_dict
@@ -69,20 +69,22 @@ def test_site_scout_close(mocker):
         (2, 1, True),
     ],
 )
-def test_site_scout_launch_retries(mocker, attempts, failures, success):
+def test_site_scout_launch_retries(mocker, tmp_path, attempts, failures, success):
     """test SiteScout._launch()"""
     mocker.patch("site_scout.site_scout.sleep", autospec=True)
     ffp = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
     ffp.return_value.launch.side_effect = chain(
-        repeat(LaunchError(), failures), cycle([None])
+        repeat(BrowserTerminatedError(), failures), cycle([None])
     )
     with SiteScout(None) as scout:
         assert not scout._active
         if success:
             scout._launch("http://a/", launch_attempts=attempts)
+            assert ffp.return_value.save_logs.call_count == 0
         else:
-            with raises(LaunchError):
-                scout._launch("http://a/", launch_attempts=attempts)
+            with raises(BrowserTerminatedError):
+                scout._launch("http://a/", launch_attempts=attempts, log_path=tmp_path)
+            assert ffp.return_value.save_logs.call_count == 1
         assert ffp.return_value.clean_up.call_count == failures
 
 
