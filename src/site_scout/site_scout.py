@@ -205,12 +205,15 @@ class SiteScout:
             visit.puppet.clean_up()
         self._complete.clear()
 
-    def _launch(self, url: URL, launch_attempts: int = 3) -> None:
+    def _launch(
+        self, url: URL, launch_attempts: int = 3, log_path: Optional[Path] = None
+    ) -> None:
         """Launch a new browser instance and visit provided URL.
 
         Args:
             url: URL to visit.
             launch_attempts: Attempts to launch the browser before raising.
+            log_path: Directory to save launch failure logs.
 
         Returns:
             None
@@ -239,15 +242,22 @@ class SiteScout:
                     cert_files=self._cert_files,
                 )
             except LaunchError as exc:
-                ffp.clean_up()
+                is_failure = not isinstance(exc, BrowserTimeoutError)
                 LOG.warning(
                     "Browser launch %s (attempt %d/%d)",
-                    "timeout" if isinstance(exc, BrowserTimeoutError) else "failure",
+                    "failure" if is_failure else "timeout",
                     attempt,
                     launch_attempts,
                 )
                 if attempt == launch_attempts:
+                    if is_failure and log_path is not None:
+                        ffp.close()
+                        dst = log_path / strftime("%Y%m%d-%H%M%S-launch-failure")
+                        ffp.save_logs(dst)
+                        LOG.warning("Logs saved '%s'", dst)
+                    ffp.clean_up()
                     raise
+                ffp.clean_up()
                 # launch attempt limit not met... retry
                 sleep(1)
                 continue
@@ -499,7 +509,7 @@ class SiteScout:
                     total_urls,
                     f"{url_str[:80]}..." if len(url_str) > 80 else url_str,
                 )
-                self._launch(next_url)
+                self._launch(next_url, log_path=log_path)
                 last_visit[next_url.domain] = time()
                 next_url = None
                 assert self._active

@@ -2,6 +2,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
+from ffpuppet import BrowserTerminatedError
 from pytest import mark
 
 from .main import generate_prefs, load_input, main
@@ -30,17 +31,24 @@ def test_main_01(mocker, tmp_path, args):
         data = tmp_path / "data.yml"
         data.write_text("{'d':{'s':['/']}}")
         default_args.extend(["-i", str(data)])
-    main(default_args + args)
+    assert main(default_args + args) == 0
 
 
-def test_main_02(mocker, tmp_path):
-    """test main() KeyboardInterrupt"""
-    mocker.patch(
-        "site_scout.main.SiteScout", autospec=True, side_effect=KeyboardInterrupt()
-    )
+@mark.parametrize(
+    "exception, exit_code",
+    [
+        # user abort
+        (KeyboardInterrupt(), 0),
+        # browser failed to launch
+        (BrowserTerminatedError(), 1),
+    ],
+)
+def test_main_02(mocker, tmp_path, exception, exit_code):
+    """test main() exceptions"""
+    mocker.patch("site_scout.main.SiteScout", autospec=True, side_effect=exception)
     fake_bin = tmp_path / "fake_browser_bin"
     fake_bin.touch()
-    main([str(fake_bin), "-u", "a.b.c"])
+    assert main([str(fake_bin), "-u", "a.b.c"]) == exit_code
 
 
 def test_generate_prefs_01(tmp_path):
