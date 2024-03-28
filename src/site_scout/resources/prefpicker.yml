@@ -111,6 +111,11 @@ pref:
     variants:
       default:
       - true
+  # do not automatically restart RDD process if it crashes
+  media.rdd-retryonfailure.enabled:
+    variants:
+      default:
+      - false
   # disable automatic connection
   # https://support.mozilla.org/en-US/kb/how-stop-firefox-making-automatic-connections
   network.captive-portal-service.enabled:
