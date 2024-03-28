@@ -406,7 +406,7 @@ class SiteScout:
                     (dst / "prefs.js").write_text(self._prefs.read_text())
                 (dst / "url.txt").write_text(str(visit.url))
                 results += 1
-                LOG.info("Result found visiting %r", visit.url)
+                LOG.info("Result found visiting '%s'", visit.url)
                 if self._fuzzmanager:
                     fm_id, short_sig = self._fuzzmanager.submit(dst)
                     LOG.info(

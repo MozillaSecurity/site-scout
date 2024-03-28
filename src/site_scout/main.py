@@ -115,7 +115,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         LOG.info("Starting Site Scout...")
         with SiteScout(
-            args.binary,
+            args.binary.resolve(),
             profile=args.profile,
             prefs_js=args.prefs,
             debugger=args.debugger,
