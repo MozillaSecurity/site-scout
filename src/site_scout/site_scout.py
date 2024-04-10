@@ -222,6 +222,7 @@ class SiteScout:
 
         env_mod: Dict[str, Optional[str]] = {"MOZ_CRASHREPORTER_SHUTDOWN": "1"}
 
+        success = False
         for attempt in range(1, launch_attempts + 1):
             ffp = FFPuppet(
                 debugger=self._debugger,
@@ -241,6 +242,7 @@ class SiteScout:
                     extension=self._extension,
                     cert_files=self._cert_files,
                 )
+                success = True
             except LaunchError as exc:
                 is_failure = not isinstance(exc, BrowserTimeoutError)
                 LOG.warning(
@@ -250,18 +252,20 @@ class SiteScout:
                     launch_attempts,
                 )
                 if attempt == launch_attempts:
+                    # save failure
                     if is_failure and log_path is not None:
                         ffp.close()
                         dst = log_path / strftime("%Y%m%d-%H%M%S-launch-failure")
                         ffp.save_logs(dst)
                         LOG.warning("Logs saved '%s'", dst)
-                    ffp.clean_up()
                     raise
-                ffp.clean_up()
-                # launch attempt limit not met... retry
-                sleep(1)
-                continue
-            break
+            finally:
+                if not success:
+                    ffp.clean_up()
+            if success:
+                break
+            # launch attempt limit not met... retry
+            sleep(1)
 
         self._active.append(Visit(ffp, url))
 
