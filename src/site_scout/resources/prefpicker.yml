@@ -145,6 +145,11 @@ pref:
     variants:
       default:
       - 2
+  # hangs are detected by ffpuppet
+  toolkit.content-background-hang-monitor.disabled:
+    variants:
+      default:
+      - true
   toolkit.startup.max_resumed_crashes:
     variants:
       default:
