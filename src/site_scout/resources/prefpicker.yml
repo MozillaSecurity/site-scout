@@ -14,6 +14,10 @@ pref:
     variants:
       default:
       - false
+  browser.launcherProcess.enabled:
+    variants:
+      default:
+      - false
   browser.newtabpage.enabled:
     variants:
       default:
