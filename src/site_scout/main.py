@@ -34,12 +34,10 @@ def init_logging(level: int) -> None:
         None
     """
     if level == DEBUG:
-        date_fmt = "%m-%d %H:%M:%S"
         log_fmt = "%(asctime)s.%(msecs)03d %(levelname).1s %(name)s | %(message)s"
     else:
-        date_fmt = "%H:%M:%S"
         log_fmt = "[%(asctime)s] %(message)s"
-    basicConfig(format=log_fmt, datefmt=date_fmt, level=level)
+    basicConfig(format=log_fmt, datefmt="%H:%M:%S", level=level)
 
 
 def generate_prefs(dst: Optional[Path] = None, variant: str = "a11y") -> Path:
