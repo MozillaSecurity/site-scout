@@ -4,7 +4,7 @@
 from logging import DEBUG, basicConfig, getLogger
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, Iterator, List, Optional
+from typing import Iterator, List, Optional
 
 from ffpuppet import LaunchError
 from prefpicker import PrefPicker
@@ -20,7 +20,7 @@ from yaml.reader import ReaderError
 from yaml.scanner import ScannerError
 
 from .args import parse_args
-from .site_scout import SiteScout, verify_dict
+from .site_scout import SiteScout, UrlDB, verify_dict
 
 LOG = getLogger(__name__)
 
@@ -59,9 +59,7 @@ def generate_prefs(dst: Optional[Path] = None, variant: str = "a11y") -> Path:
     return prefs
 
 
-def load_input(
-    src: List[Path], allow_empty: bool = False
-) -> Iterator[Dict[str, Dict[str, List[str]]]]:
+def load_input(src: List[Path], allow_empty: bool = False) -> Iterator[UrlDB]:
     """Load data from filesystem.
 
     Arguments:

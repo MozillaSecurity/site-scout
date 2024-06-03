@@ -9,7 +9,7 @@ from random import shuffle
 from shutil import rmtree
 from tempfile import gettempdir
 from time import gmtime, sleep, strftime, time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, NewType, Optional
 from urllib.parse import urlsplit
 
 from ffpuppet import BrowserTimeoutError, Debugger, FFPuppet, LaunchError, Reason
@@ -24,6 +24,9 @@ TMP_PATH.mkdir(exist_ok=True, parents=True)
 # This is used as a placeholder for empty subdomains
 # WARNING: If this changes all yml files will need to be updated
 NO_SUBDOMAIN = "*"
+
+# Note: Python 3.10+ use TypeAlias
+UrlDB = NewType("UrlDB", Dict[str, Dict[str, List[str]]])
 
 
 class Status:
@@ -274,7 +277,7 @@ class SiteScout:
 
         self._active.append(Visit(ffp, url))
 
-    def load_dict(self, data: Dict[str, Dict[str, List[str]]]) -> None:
+    def load_dict(self, data: UrlDB) -> None:
         """Load URLs from a dict add to list of URLs to visit.
 
         Args:

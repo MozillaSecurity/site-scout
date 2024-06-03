@@ -4,7 +4,7 @@
 from argparse import ArgumentParser, Namespace
 from logging import DEBUG, INFO, getLogger
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Set
+from typing import Generator, List, Optional, Set, cast
 from urllib.parse import urlsplit
 
 from tldextract import extract
@@ -16,7 +16,7 @@ except ImportError:
     from yaml import SafeDumper  # type: ignore
 
 from .main import init_logging, load_input
-from .site_scout import NO_SUBDOMAIN, URL
+from .site_scout import NO_SUBDOMAIN, URL, UrlDB
 
 LOG = getLogger(__name__)
 
@@ -26,8 +26,8 @@ class UrlCollection:
 
     __slots__ = ("_db", "unparsable")
 
-    def __init__(self, url_db: Optional[Dict[Any, Any]] = None) -> None:
-        self._db = url_db or {}
+    def __init__(self, url_db: Optional[UrlDB] = None) -> None:
+        self._db = url_db or cast(UrlDB, {})
         self.unparsable: Set[str] = set()
 
     def __len__(self) -> int:
@@ -113,6 +113,7 @@ class UrlCollection:
             LOG.debug("failed to parse and add: %r", url)
             self.unparsable.add(url)
         else:
+            assert parsed.subdomain is not None
             if parsed.domain not in self._db:
                 self._db[parsed.domain] = {}
             if parsed.subdomain not in self._db[parsed.domain]:
@@ -148,6 +149,7 @@ class UrlCollection:
         if parsed is None:
             LOG.debug("failed to parse and remove: %r", url)
             return False
+        assert parsed.subdomain is not None
 
         try:
             self._db[parsed.domain][parsed.subdomain].remove(parsed.path)
