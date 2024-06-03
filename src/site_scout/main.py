@@ -16,6 +16,7 @@ except ImportError:  # pragma: no cover
     from yaml import SafeLoader  # type: ignore
 
 from yaml.parser import ParserError
+from yaml.reader import ReaderError
 from yaml.scanner import ScannerError
 
 from .args import parse_args
@@ -58,11 +59,14 @@ def generate_prefs(dst: Optional[Path] = None, variant: str = "a11y") -> Path:
     return prefs
 
 
-def load_input(src: List[Path]) -> Iterator[Dict[str, Dict[str, List[str]]]]:
+def load_input(
+    src: List[Path], allow_empty: bool = False
+) -> Iterator[Dict[str, Dict[str, List[str]]]]:
     """Load data from filesystem.
 
     Arguments:
         src: Files and directories to load data from.
+        allow_empty: Empty data set is valid if True.
 
     Yields:
         URL data.
@@ -72,10 +76,10 @@ def load_input(src: List[Path]) -> Iterator[Dict[str, Dict[str, List[str]]]]:
         with entry.open("r") as in_fp:
             try:
                 data = load(in_fp, Loader=SafeLoader)
-            except (ParserError, ScannerError):
+            except (ParserError, ReaderError, ScannerError):
                 LOG.warning("Load failure - Invalid yml (ignored: %s)", entry)
                 continue
-        err_msg = verify_dict(data)
+        err_msg = verify_dict(data, allow_empty=allow_empty)
         if err_msg:
             LOG.warning("Load failure - %s (ignored: %s)", err_msg, entry)
             continue

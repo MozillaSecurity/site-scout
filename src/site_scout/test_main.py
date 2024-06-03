@@ -81,5 +81,6 @@ def test_load_input_01(tmp_path):
     (tmp_path / "bad.yml").write_text("{-")
     (tmp_path / "sites.yml").write_text(valid)
     (tmp_path / "a.yml").write_text("foo")
+    (tmp_path / "cont-char.yml").write_bytes(b"\0")
     results = list(load_input([tmp_path]))
     assert len(results) == 1
