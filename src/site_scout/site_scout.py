@@ -21,6 +21,11 @@ TMP_PATH = Path(gettempdir()) / "site-scout"
 TMP_PATH.mkdir(exist_ok=True, parents=True)
 
 
+# This is used as a placeholder for empty subdomains
+# WARNING: If this changes all yml files will need to be updated
+NO_SUBDOMAIN = "*"
+
+
 class Status:
     """Track and report status to a file."""
 
@@ -289,10 +294,9 @@ class SiteScout:
             for subdomain, paths in subdomains.items():
                 total_subdomains += 1
                 for path in paths:
-                    # "*" indicates no subdomain
                     url = URL(
                         domain,
-                        subdomain=subdomain if subdomain != "*" else None,
+                        subdomain=subdomain if subdomain != NO_SUBDOMAIN else None,
                         path=path,
                     )
                     # avoid duplicates
