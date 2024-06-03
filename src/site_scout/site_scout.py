@@ -540,18 +540,19 @@ class SiteScout:
 
 
 # pylint: disable=too-many-return-statements
-def verify_dict(data: Any) -> Optional[str]:
+def verify_dict(data: Any, allow_empty: bool = False) -> Optional[str]:
     """Verify the structure of data.
 
     Args:
         data: Dictionary to check.
+        allow_empty: Empty data set is valid if True.
 
     Return:
-        An error message is returned if an problem is found.
+        An error message is returned if a problem is found.
     """
     if not isinstance(data, dict):
         return "Invalid data"
-    if not data:
+    if not data and not allow_empty:
         return "No data found"
     # check domains
     for domain, subdomains in data.items():
