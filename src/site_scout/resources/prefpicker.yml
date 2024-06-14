@@ -1,5 +1,13 @@
 # variant list is found at the end of the template
 pref:
+  # might help find caret related bugs
+  accessibility.browsewithcaret:
+    variants:
+      a11y:
+      - null
+      - true
+      default:
+      - null
   accessibility.force_disabled:
     variants:
       a11y:
@@ -98,6 +106,11 @@ pref:
     variants:
       default:
       - ''
+  # normally only enabled on devices with touchscreens (emilio)
+  layout.accessiblecaret.enabled:
+    variants:
+      default:
+      - true
   # 0=Allowed, 1=Blocked, 2=Prompt
   media.autoplay.default:
     variants:
