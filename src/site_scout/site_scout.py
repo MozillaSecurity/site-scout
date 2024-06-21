@@ -523,6 +523,11 @@ class SiteScout:
                     f"{url_str[:80]}..." if len(url_str) > 80 else url_str,
                 )
                 self._launch(next_url, log_path=log_path)
+                LOG.debug(
+                    "launched browser visiting [%s] %s",
+                    next_url.uid[:8],
+                    f"{url_str[:80]}..." if len(url_str) > 80 else url_str,
+                )
                 last_visit[next_url.domain] = time()
                 next_url = None
                 assert self._active
