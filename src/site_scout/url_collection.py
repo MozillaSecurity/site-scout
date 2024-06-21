@@ -44,9 +44,7 @@ class UrlCollection:
                     yield URL(domain, subdomain=sub, path=path)
 
     @staticmethod
-    def _parse_url(
-        url: str, default_subdomain: Optional[str] = NO_SUBDOMAIN
-    ) -> Optional[URL]:
+    def _parse_url(url: str, default_subdomain: str = NO_SUBDOMAIN) -> Optional[URL]:
         """Parse URL from given string.
 
         Args:
