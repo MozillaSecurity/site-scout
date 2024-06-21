@@ -128,13 +128,11 @@ class Visit:
 
     __slots__ = ("idle_timestamp", "puppet", "url", "timestamp")
 
-    def __init__(
-        self, puppet: FFPuppet, url: URL, timestamp: Optional[float] = None
-    ) -> None:
+    def __init__(self, puppet: FFPuppet, url: URL, timestamp: float) -> None:
         self.idle_timestamp: Optional[float] = None
         self.puppet = puppet
         self.url = url
-        self.timestamp = time() if timestamp is None else timestamp
+        self.timestamp = timestamp
         assert self.timestamp >= 0
 
 
@@ -277,10 +275,10 @@ class SiteScout:
             # launch attempt limit not met... retry
             sleep(1)
 
-        self._active.append(Visit(ffp, url))
+        self._active.append(Visit(ffp, url, time()))
 
     def load_dict(self, data: UrlDB) -> None:
-        """Load URLs from a dict add to list of URLs to visit.
+        """Load URLs from a UrlDB (dict) and add to list of URLs to visit.
 
         Args:
             data: Dictionary containing URLs.
