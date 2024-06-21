@@ -80,6 +80,8 @@ class Status:
 class URL:
     """URL components."""
 
+    ALLOWED_SCHEMES = frozenset(("http", "https"))
+
     __slots__ = ("domain", "scheme", "subdomain", "path", "_uid")
 
     def __init__(
@@ -94,7 +96,7 @@ class URL:
         assert subdomain is None or subdomain
         self.domain = domain.lower()
         self.scheme = scheme.lower()
-        assert self.scheme in ("http", "https")
+        assert self.scheme in self.ALLOWED_SCHEMES
         self.subdomain = subdomain.lower() if subdomain else None
         self.path = path
         self._uid: Optional[str] = None
@@ -327,7 +329,7 @@ class SiteScout:
         assert url
         if "://" in url:
             scheme = url.split("://", maxsplit=1)[0]
-            if scheme.lower() not in ("http", "https"):
+            if scheme.lower() not in URL.ALLOWED_SCHEMES:
                 raise ValueError(f"Unsupported scheme in URL: {scheme}")
         else:
             url = f"http://{url}"
