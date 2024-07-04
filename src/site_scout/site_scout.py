@@ -145,6 +145,7 @@ class SiteScout:
         "_binary",
         "_cert_files",
         "_complete",
+        "_coverage",
         "_debugger",
         "_display",
         "_extension",
@@ -170,6 +171,7 @@ class SiteScout:
         extension: Optional[List[Path]] = None,
         cert_files: Optional[List[Path]] = None,
         fuzzmanager: bool = False,
+        coverage: bool = False,
     ) -> None:
         self._active: List[Visit] = []
         self._complete: List[Visit] = []
@@ -177,6 +179,7 @@ class SiteScout:
         # browser related
         self._binary = binary
         self._cert_files = cert_files
+        self._coverage = coverage
         self._debugger = debugger
         self._extension = extension
         self._display = display
@@ -374,6 +377,8 @@ class SiteScout:
                 complete.append(index)
             elif visit_runtime >= time_limit:
                 LOG.debug("visit timeout (%s)", visit.url.uid[:8])
+                if self._coverage:
+                    visit.puppet.dump_coverage()
                 visit.puppet.close()
                 complete.append(index)
             # check all browser processes are below idle limit
@@ -385,6 +390,8 @@ class SiteScout:
                         visit.idle_timestamp = now
                     if now - visit.idle_timestamp >= idle_wait:
                         LOG.debug("visit idle (%s)", visit.url.uid[:8])
+                        if self._coverage:
+                            visit.puppet.dump_coverage()
                         visit.puppet.close()
                         complete.append(index)
                 elif visit.idle_timestamp is not None:

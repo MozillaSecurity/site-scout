@@ -2,7 +2,9 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-from pytest import raises
+from platform import system
+
+from pytest import mark, raises
 
 from .args import parse_args
 
@@ -73,3 +75,35 @@ def test_args_03(mocker, capsys, tmp_path):
     with raises(SystemExit):
         parse_args([str(dummy_file), "-u", "foo", "--rr"])
     assert "perf_event_paranoid <= 1, but it is 99" in capsys.readouterr()[-1]
+
+
+@mark.skipif(system() != "Linux", reason="Only supported on Linux")
+def test_args_04(capsys, mocker, tmp_path):
+    """test parse_args() - coverage"""
+    dummy_file = tmp_path / "dummy_file"
+    dummy_file.touch()
+    fake_getenv = mocker.patch("site_scout.args.getenv", autospec=True)
+
+    assert parse_args([str(dummy_file), "-i", str(dummy_file), "--coverage"])
+
+    fake_getenv.side_effect = ("", "", "")
+    with raises(SystemExit):
+        assert parse_args([str(dummy_file), "-i", str(dummy_file), "--coverage"])
+    assert (
+        "error: GCOV_PREFIX_STRIP must be set to use --coverage"
+        in capsys.readouterr()[-1]
+    )
+
+    fake_getenv.side_effect = ("", "", "/", "")
+    with raises(SystemExit):
+        assert parse_args([str(dummy_file), "-i", str(dummy_file), "--coverage"])
+    assert "error: GCOV_PREFIX must be set to use --coverage" in capsys.readouterr()[-1]
+
+    fake_getenv.side_effect = ("", "", "/", "/")
+    with raises(SystemExit):
+        assert parse_args(
+            [str(dummy_file), "-i", str(dummy_file), "--coverage", "--jobs", "2"]
+        )
+    assert (
+        "error: Parallel jobs not supported with --coverage" in capsys.readouterr()[-1]
+    )
