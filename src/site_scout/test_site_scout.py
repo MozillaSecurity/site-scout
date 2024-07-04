@@ -114,8 +114,9 @@ def test_site_scout_process_active(
     ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
     ffpuppet.return_value.is_healthy.return_value = is_healthy
     ffpuppet.return_value.cpu_usage.return_value = [(None, cpu_usage)]
-    with SiteScout(None) as scout:
+    with SiteScout(None, coverage=True) as scout:
         assert not scout._active
+        assert scout._coverage
         for url in urls:
             scout._launch(url)
         total_active = len(scout._active)
@@ -136,6 +137,10 @@ def test_site_scout_process_active(
             assert not entry.puppet.close.call_count
         for entry in scout._complete:
             assert entry.puppet.close.call_count
+            if is_healthy:
+                assert entry.puppet.dump_coverage.call_count
+            else:
+                assert not entry.puppet.dump_coverage.call_count
 
 
 @mark.parametrize(

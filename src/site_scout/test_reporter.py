@@ -29,15 +29,11 @@ def test_fuzzmanager_reporter_01(tmp_path, mocker, include_cfg, aux_log):
     if include_cfg:
         fm_config = tmp_path / f"{empty.name}.fuzzmanagerconf"
         fm_config.write_text(
-            "\n".join(
-                (
-                    "[Main]",
-                    "platform = x86-64",
-                    "product = mozilla-central",
-                    "product_version = 20230629-e784085dfb50",
-                    "os = linux",
-                )
-            )
+            "[Main]\n"
+            "platform = x86-64\n"
+            "product = mozilla-central\n"
+            "product_version = 20230629-e784085dfb50\n"
+            "os = linux"
         )
     result = tmp_path / "result"
     result.mkdir()

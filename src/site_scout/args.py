@@ -133,8 +133,13 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
         help="Show version number.",
     )
 
-    parser.set_defaults(debugger=Debugger.NONE)
+    parser.set_defaults(coverage=False, debugger=Debugger.NONE)
     if system() == "Linux":
+        parser.add_argument(
+            "--coverage",
+            action="store_true",
+            help="Dump coverage data to disk. This requires a supported browser build.",
+        )
         dbg_group = parser.add_mutually_exclusive_group()
         dbg_group.add_argument(
             "--pernosco",
@@ -160,6 +165,15 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
             args.time_limit = TIME_LIMIT_DEBUG
     if args.time_limit < 1:
         parser.error("--time-limit must be > 0 (recommended minimum: 30)")
+
+    if args.coverage:
+        # GCOV_PREFIX_STRIP and GCOV_PREFIX are specific to Firefox coverage builds
+        if not getenv("GCOV_PREFIX_STRIP"):
+            parser.error("GCOV_PREFIX_STRIP must be set to use --coverage")
+        if not getenv("GCOV_PREFIX"):
+            parser.error("GCOV_PREFIX must be set to use --coverage")
+        if args.jobs > 1:
+            parser.error("Parallel jobs not supported with --coverage")
 
     if args.debugger in (Debugger.PERNOSCO, Debugger.RR):
         if args.fuzzmanager:
