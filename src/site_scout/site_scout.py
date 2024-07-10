@@ -233,6 +233,7 @@ class SiteScout:
 
         env_mod: Dict[str, Optional[str]] = {"MOZ_CRASHREPORTER_SHUTDOWN": "1"}
 
+        ffp = None
         success = False
         for attempt in range(1, launch_attempts + 1):
             ffp = FFPuppet(
@@ -273,11 +274,13 @@ class SiteScout:
             finally:
                 if not success:
                     ffp.clean_up()
+                    ffp = None
             if success:
                 break
             # launch attempt limit not met... retry
             sleep(1)
 
+        assert ffp is not None
         self._active.append(Visit(ffp, url, time()))
 
     def load_dict(self, data: UrlDB) -> None:
