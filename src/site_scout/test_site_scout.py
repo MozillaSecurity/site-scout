@@ -346,35 +346,44 @@ def test_site_scout_status(
 
 
 @mark.parametrize(
-    "size, limit, randomize",
+    "size, limit, randomize, visits",
     [
         # empty
-        (0, 0, True),
+        (0, 0, True, 1),
         # empty with limit
-        (0, 1, True),
+        (0, 1, True, 1),
         # no limit
-        (10, 0, True),
+        (10, 0, True, 1),
         # enforce limit
-        (10, 2, True),
+        (10, 2, True, 1),
         # no limit
-        (10, 0, False),
+        (10, 0, False, 1),
         # enforce limit
-        (10, 2, False),
+        (10, 2, False, 1),
+        # visit list 2x
+        (5, 0, False, 2),
+        # limit and repeat list
+        (10, 2, False, 2),
     ],
 )
-def test_site_scout_schedule_urls(size, limit, randomize):
+def test_site_scout_schedule_urls(size, limit, randomize, visits):
     """test Status.schedule_urls()"""
     with SiteScout(None) as scout:
         # prepare scout._urls
         scout._urls = list(range(size))
-        scout.schedule_urls(url_limit=limit, randomize=randomize)
+        scout.schedule_urls(url_limit=limit, randomize=randomize, visits=visits)
         if limit and size >= limit:
-            assert len(scout._urls) == limit
+            assert len(scout._urls) == limit * visits
         else:
-            assert len(scout._urls) == size
+            assert len(scout._urls) == size * visits
         if not randomize:
             assert scout._urls[-1] == 0
             assert scout._urls[0] == (limit - 1) if limit else (size - 1)
+        if visits > 1:
+            if limit > 0:
+                assert scout._urls[0] == scout._urls[limit]
+            elif size > 0:
+                assert scout._urls[0] == scout._urls[size]
 
 
 @mark.parametrize(

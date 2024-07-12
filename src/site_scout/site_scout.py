@@ -442,12 +442,15 @@ class SiteScout:
             visit.puppet.clean_up()
         return results
 
-    def schedule_urls(self, url_limit: int = 0, randomize: bool = True) -> None:
+    def schedule_urls(
+        self, url_limit: int = 0, randomize: bool = True, visits: int = 1
+    ) -> None:
         """Prepare URL list. Randomize and limit size as needed.
 
         Args:
             url_limit: Limit total URLs when value is greater than zero.
             shuffle_urls: Randomly order URLs visits.
+            visits: Number of times to visit each URL.
 
         Returns:
             None
@@ -463,6 +466,10 @@ class SiteScout:
             # provided url list is processed in reverse order
             # reverse the list to maintain original order
             self._urls.reverse()
+        if visits > 1:
+            LOG.info("Each URL will be visited %dx", visits)
+            # repeat the list for multiple visits
+            self._urls = self._urls * visits
 
     # pylint: disable=too-many-locals
     def run(
