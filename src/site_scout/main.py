@@ -134,7 +134,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             for in_url in args.url:
                 scout.load_str(in_url)
             # don't randomize urls passed on the command line
-            scout.schedule_urls(url_limit=args.url_limit, randomize=any(args.input))
+            scout.schedule_urls(
+                url_limit=args.url_limit,
+                randomize=any(args.input),
+                visits=args.visits,
+            )
             scout.run(
                 args.output_path,
                 args.time_limit,

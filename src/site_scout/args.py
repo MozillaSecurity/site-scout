@@ -132,6 +132,12 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
         version=f"%(prog)s {__version__}",
         help="Show version number.",
     )
+    parser.add_argument(
+        "--visits",
+        type=int,
+        default=1,
+        help="Number of times to visit each URL (default: %(default)s).",
+    )
 
     parser.set_defaults(coverage=False, debugger=Debugger.NONE)
     if system() == "Linux":
