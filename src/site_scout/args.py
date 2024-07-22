@@ -110,6 +110,13 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
         help="Location to save results (default: %(default)s).",
     )
     parser.add_argument(
+        "--result-limit",
+        type=int,
+        default=0,
+        help="Maximum number of results."
+        " Remaining visits will be skipped if limit is hit (default: no limit).",
+    )
+    parser.add_argument(
         "--status-report",
         type=Path,
         help="Location to save periodic status report (default: no report).",

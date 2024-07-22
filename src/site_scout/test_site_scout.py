@@ -188,31 +188,35 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
 
 
 @mark.parametrize(
-    "urls, reason, jobs, reports, use_fm, status",
+    "urls, reason, jobs, reports, use_fm, status, result_limit",
     [
         # no urls to process
-        ([], None, 1, 0, False, True),
+        ([], None, 1, 0, False, True, 0),
         # interesting result
-        ([URL("foo")], Reason.ALERT, 1, 1, False, False),
+        ([URL("foo")], Reason.ALERT, 1, 1, False, False, 0),
         # job > work
-        ([URL("foo")], Reason.ALERT, 2, 1, False, False),
+        ([URL("foo")], Reason.ALERT, 2, 1, False, False, 0),
         # multiple interesting results
-        ([URL("foo"), URL("bar")], Reason.ALERT, 1, 2, False, False),
+        ([URL("foo"), URL("bar")], Reason.ALERT, 1, 2, False, False, 0),
         # work > jobs
-        ([URL("1"), URL("2"), URL("3"), URL("4")], Reason.ALERT, 2, 4, False, False),
+        ([URL("1"), URL("2"), URL("3"), URL("4")], Reason.ALERT, 2, 4, False, False, 0),
         # uninteresting result
-        ([URL("foo")], Reason.CLOSED, 1, 0, False, False),
+        ([URL("foo")], Reason.CLOSED, 1, 0, False, False, 0),
         # domain rate limit
-        ([URL("foo"), URL("foo")], Reason.CLOSED, 1, 0, False, False),
+        ([URL("foo"), URL("foo")], Reason.CLOSED, 1, 0, False, False, 0),
         # timeout
-        ([URL("foo")], None, 1, 0, False, False),
+        ([URL("foo")], None, 1, 0, False, False, 0),
         # report via FuzzManager
-        ([URL("foo")], Reason.ALERT, 1, 1, True, False),
+        ([URL("foo")], Reason.ALERT, 1, 1, True, False, 0),
         # report status
-        ([URL("foo")], Reason.ALERT, 1, 1, False, True),
+        ([URL("foo")], Reason.ALERT, 1, 1, False, True, 0),
+        # hit result limit
+        ([URL("foo"), URL("bar")], Reason.ALERT, 1, 1, False, False, 1),
     ],
 )
-def test_site_scout_run(mocker, tmp_path, urls, reason, jobs, reports, use_fm, status):
+def test_site_scout_run(
+    mocker, tmp_path, urls, reason, jobs, reports, use_fm, status, result_limit
+):
     """test SiteScout.run()"""
 
     # pylint: disable=unused-argument
@@ -236,7 +240,13 @@ def test_site_scout_run(mocker, tmp_path, urls, reason, jobs, reports, use_fm, s
     with SiteScout(None, fuzzmanager=use_fm) as scout:
         assert not scout._active
         scout._urls = urls
-        scout.run(report_dst, 10, instance_limit=jobs, status_report=status_file)
+        scout.run(
+            report_dst,
+            10,
+            instance_limit=jobs,
+            status_report=status_file,
+            result_limit=result_limit,
+        )
     assert sum(1 for _ in report_dst.iterdir()) == (0 if use_fm else reports)
     assert reporter.return_value.submit.call_count == (reports if use_fm else 0)
 
@@ -384,6 +394,18 @@ def test_site_scout_schedule_urls(size, limit, randomize, visits):
                 assert scout._urls[0] == scout._urls[limit]
             elif size > 0:
                 assert scout._urls[0] == scout._urls[size]
+
+
+def test_site_scout_skip_remaining(mocker):
+    """test Status._skip_remaining()"""
+    active = mocker.Mock(spec_set=Visit)
+    with SiteScout(None) as scout:
+        scout._active = [active]
+        scout._urls = [mocker.Mock(spec_set=URL)]
+        scout._skip_remaining()
+        assert not scout._active
+        assert not scout._urls
+        assert active.puppet.clean_up.call_count == 1
 
 
 @mark.parametrize(

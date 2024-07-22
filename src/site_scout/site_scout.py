@@ -471,6 +471,22 @@ class SiteScout:
             # repeat the list for multiple visits
             self._urls = self._urls * visits
 
+    def _skip_remaining(self) -> None:
+        """Skip remaining visits. This will clear the backlog of remaining Visits and
+        close and cleanup active browser instances.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
+        self._urls.clear()
+        LOG.debug("skipping active visits: %d", len(self._active))
+        for visit in self._active:
+            visit.puppet.clean_up()
+        self._active.clear()
+
     # pylint: disable=too-many-locals
     def run(
         self,
@@ -480,6 +496,7 @@ class SiteScout:
         domain_rate_limit: int = 20,
         instance_limit: int = 1,
         status_report: Optional[Path] = None,
+        result_limit: int = 0,
     ) -> None:
         """Iterate over and visit each URL. Each visit is performed in a new browser
         instance using a clean profile.
@@ -491,6 +508,7 @@ class SiteScout:
             domain_rate_limit: Minimum time in seconds between visiting the same domain.
             instance_limit: Maximum number of browser sessions to run at once.
             status_report: File to populate with status report data.
+            result_limit: Number of results that can be found before exiting.
 
         Returns:
             None
@@ -498,6 +516,7 @@ class SiteScout:
         assert check_delay >= 0
         assert domain_rate_limit >= 0
         assert instance_limit > 0
+        assert result_limit >= 0
 
         last_visit: Dict[str, float] = {}
         next_url: Optional[URL] = None
@@ -506,7 +525,7 @@ class SiteScout:
         total_urls = len(self._urls)
         total_visits = 0
         while self._urls or self._active:
-            assert not next_url
+            assert next_url is None
 
             # perform status report
             if status:
@@ -550,6 +569,13 @@ class SiteScout:
             # check for complete processes
             self._process_active(time_limit)
             total_results += self._process_complete(log_path=log_path)
+
+            # check result limit
+            if result_limit and self._urls and total_results >= result_limit:
+                LOG.info("Result limit (%d) hit", result_limit)
+                self._skip_remaining()
+                assert not self._active
+                assert not self._urls
 
             # wait a moment for work to complete
             if self._urls or self._active:
