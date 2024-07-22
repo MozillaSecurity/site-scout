@@ -117,6 +117,13 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
         " Remaining visits will be skipped if limit is hit (default: no limit).",
     )
     parser.add_argument(
+        "--runtime-limit",
+        type=int,
+        default=0,
+        help="Maximum runtime in seconds."
+        " Remaining visits will be skipped if limit is hit (default: no limit).",
+    )
+    parser.add_argument(
         "--status-report",
         type=Path,
         help="Location to save periodic status report (default: no report).",

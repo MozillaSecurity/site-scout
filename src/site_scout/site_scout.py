@@ -487,7 +487,7 @@ class SiteScout:
             visit.puppet.clean_up()
         self._active.clear()
 
-    # pylint: disable=too-many-locals
+    # pylint: disable=too-many-locals,too-many-statements
     def run(
         self,
         log_path: Path,
@@ -497,6 +497,7 @@ class SiteScout:
         instance_limit: int = 1,
         status_report: Optional[Path] = None,
         result_limit: int = 0,
+        runtime_limit: int = 0,
     ) -> None:
         """Iterate over and visit each URL. Each visit is performed in a new browser
         instance using a clean profile.
@@ -509,6 +510,7 @@ class SiteScout:
             instance_limit: Maximum number of browser sessions to run at once.
             status_report: File to populate with status report data.
             result_limit: Number of results that can be found before exiting.
+            runtime_limit: Maximum number of seconds to run.
 
         Returns:
             None
@@ -517,7 +519,14 @@ class SiteScout:
         assert domain_rate_limit >= 0
         assert instance_limit > 0
         assert result_limit >= 0
+        assert runtime_limit >= 0
 
+        if runtime_limit > 0:
+            minutes, seconds = divmod(runtime_limit, 60)
+            hours, minutes = divmod(minutes, 60)
+            LOG.info("Runtime limit is %02d:%02d:%02d", hours, minutes, seconds)
+
+        end_time = time() + runtime_limit if runtime_limit > 0 else 0
         last_visit: Dict[str, float] = {}
         next_url: Optional[URL] = None
         status = Status(status_report) if status_report else None
@@ -570,9 +579,14 @@ class SiteScout:
             self._process_active(time_limit)
             total_results += self._process_complete(log_path=log_path)
 
-            # check result limit
+            # check result and runtime limits
             if result_limit and self._urls and total_results >= result_limit:
                 LOG.info("Result limit (%d) hit", result_limit)
+                self._skip_remaining()
+                assert not self._active
+                assert not self._urls
+            elif 0 < end_time <= time():
+                LOG.info("Runtime limit (%ds) hit", runtime_limit)
                 self._skip_remaining()
                 assert not self._active
                 assert not self._urls

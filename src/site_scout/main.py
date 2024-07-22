@@ -145,6 +145,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 instance_limit=args.jobs,
                 status_report=args.status_report,
                 result_limit=args.result_limit,
+                runtime_limit=args.runtime_limit,
             )
     except KeyboardInterrupt:
         LOG.warning("Aborting...")
