@@ -188,35 +188,55 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
 
 
 @mark.parametrize(
-    "urls, reason, jobs, reports, use_fm, status, result_limit",
+    "urls, reason, jobs, reports, use_fm, status, result_limit, runtime_limit",
     [
         # no urls to process
-        ([], None, 1, 0, False, True, 0),
+        ([], None, 1, 0, False, True, 0, 0),
         # interesting result
-        ([URL("foo")], Reason.ALERT, 1, 1, False, False, 0),
+        ([URL("foo")], Reason.ALERT, 1, 1, False, False, 0, 0),
         # job > work
-        ([URL("foo")], Reason.ALERT, 2, 1, False, False, 0),
+        ([URL("foo")], Reason.ALERT, 2, 1, False, False, 0, 0),
         # multiple interesting results
-        ([URL("foo"), URL("bar")], Reason.ALERT, 1, 2, False, False, 0),
+        ([URL("foo"), URL("bar")], Reason.ALERT, 1, 2, False, False, 0, 0),
         # work > jobs
-        ([URL("1"), URL("2"), URL("3"), URL("4")], Reason.ALERT, 2, 4, False, False, 0),
+        (
+            [URL("1"), URL("2"), URL("3"), URL("4")],
+            Reason.ALERT,
+            2,
+            4,
+            False,
+            False,
+            0,
+            0,
+        ),
         # uninteresting result
-        ([URL("foo")], Reason.CLOSED, 1, 0, False, False, 0),
+        ([URL("foo")], Reason.CLOSED, 1, 0, False, False, 0, 0),
         # domain rate limit
-        ([URL("foo"), URL("foo")], Reason.CLOSED, 1, 0, False, False, 0),
+        ([URL("foo"), URL("foo")], Reason.CLOSED, 1, 0, False, False, 0, 0),
         # timeout
-        ([URL("foo")], None, 1, 0, False, False, 0),
+        ([URL("foo")], None, 1, 0, False, False, 0, 0),
         # report via FuzzManager
-        ([URL("foo")], Reason.ALERT, 1, 1, True, False, 0),
+        ([URL("foo")], Reason.ALERT, 1, 1, True, False, 0, 0),
         # report status
-        ([URL("foo")], Reason.ALERT, 1, 1, False, True, 0),
+        ([URL("foo")], Reason.ALERT, 1, 1, False, True, 0, 0),
         # hit result limit
-        ([URL("foo"), URL("bar")], Reason.ALERT, 1, 1, False, False, 1),
+        ([URL("foo"), URL("bar")], Reason.ALERT, 1, 1, False, False, 1, 0),
+        # hit runtime limit
+        ([URL("foo"), URL("bar")], None, 1, 0, False, False, 0, 1),
     ],
 )
 def test_site_scout_run(
-    mocker, tmp_path, urls, reason, jobs, reports, use_fm, status, result_limit
-):
+    mocker,
+    tmp_path,
+    urls,
+    reason,
+    jobs,
+    reports,
+    use_fm,
+    status,
+    result_limit,
+    runtime_limit,
+):  # pylint: disable=too-many-locals
     """test SiteScout.run()"""
 
     # pylint: disable=unused-argument
@@ -246,6 +266,7 @@ def test_site_scout_run(
             instance_limit=jobs,
             status_report=status_file,
             result_limit=result_limit,
+            runtime_limit=runtime_limit,
         )
     assert sum(1 for _ in report_dst.iterdir()) == (0 if use_fm else reports)
     assert reporter.return_value.submit.call_count == (reports if use_fm else 0)
