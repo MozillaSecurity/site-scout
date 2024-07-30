@@ -126,14 +126,14 @@ class URL:
 class Visit:
     """Visit contains details about the site and browser."""
 
-    __slots__ = ("idle_timestamp", "puppet", "url", "timestamp")
+    __slots__ = ("end_time", "idle_timestamp", "puppet", "url", "start_time")
 
-    def __init__(self, puppet: FFPuppet, url: URL, timestamp: float) -> None:
+    def __init__(self, puppet: FFPuppet, url: URL, start_time: float) -> None:
+        self.end_time: Optional[float] = None
         self.idle_timestamp: Optional[float] = None
         self.puppet = puppet
         self.url = url
-        self.timestamp = timestamp
-        assert self.timestamp >= 0
+        self.start_time = start_time
 
 
 # pylint: disable=too-many-instance-attributes
@@ -374,14 +374,16 @@ class SiteScout:
         complete: List[int] = []
         for index, visit in enumerate(self._active):
             # check if work is complete
-            visit_runtime = time() - visit.timestamp
+            visit_runtime = time() - visit.start_time
             if not visit.puppet.is_healthy():
+                visit.end_time = time()
                 visit.puppet.close()
                 complete.append(index)
             elif visit_runtime >= time_limit:
                 LOG.debug("visit timeout (%s)", visit.url.uid[:8])
                 if self._coverage:
                     visit.puppet.dump_coverage()
+                visit.end_time = time()
                 visit.puppet.close()
                 complete.append(index)
             # check all browser processes are below idle limit
@@ -395,6 +397,7 @@ class SiteScout:
                         LOG.debug("visit idle (%s)", visit.url.uid[:8])
                         if self._coverage:
                             visit.puppet.dump_coverage()
+                        visit.end_time = time()
                         visit.puppet.close()
                         complete.append(index)
                 elif visit.idle_timestamp is not None:
@@ -420,16 +423,23 @@ class SiteScout:
         while self._complete:
             LOG.debug("%d pending visit(s) to check", len(self._complete))
             visit = self._complete.pop()
+            assert visit.end_time is not None
             if visit.puppet.reason in (Reason.ALERT, Reason.WORKER):
                 dst = log_path / strftime(f"%Y%m%d-%H%M%S-result-{visit.url.uid[:8]}")
                 visit.puppet.save_logs(dst)
+                duration = visit.end_time - visit.start_time
                 if self._prefs:
                     (dst / "prefs.js").write_text(self._prefs.read_text())
+                (dst / "duration.txt").write_text(f"{duration:0.1f}")
                 (dst / "url.txt").write_text(str(visit.url))
                 results += 1
-                LOG.info("Result found visiting '%s'", visit.url)
+                LOG.info("Result found visiting '%s' (%0.1fs)", visit.url, duration)
                 if self._fuzzmanager:
-                    fm_id, short_sig = self._fuzzmanager.submit(dst)
+                    metadata = {
+                        "duration": f"{duration:0.1f}",
+                        "url": str(visit.url),
+                    }
+                    fm_id, short_sig = self._fuzzmanager.submit(dst, metadata)
                     LOG.info(
                         "FuzzManager (%d): %s",
                         fm_id,

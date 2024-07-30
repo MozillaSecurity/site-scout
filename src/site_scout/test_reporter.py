@@ -43,7 +43,7 @@ def test_fuzzmanager_reporter_01(tmp_path, mocker, include_cfg, aux_log):
         (result / aux_log).write_text("foo")
     (result / "url.txt").write_text("foo")
     reporter = FuzzManagerReporter(empty, fm_config=fm_config)
-    assert reporter.submit(result)
+    assert reporter.submit(result, {"duration": "1.0", "url": "foo"})
     assert collector.return_value.submit.call_count == 1
 
 
