@@ -40,9 +40,10 @@ def test_site_scout_launch(mocker):
         assert not scout._active
         scout._launch("http://someurl/")
         assert scout._active
+        assert scout._active[0].end_time is None
         assert scout._active[0].idle_timestamp is None
         assert scout._active[0].puppet is not None
-        assert scout._active[0].timestamp > 0
+        assert scout._active[0].start_time > 0
         assert scout._active[0].url == "http://someurl/"
 
 
@@ -123,12 +124,12 @@ def test_site_scout_process_active(
         # setup state
         if timeout:
             for visit in scout._active:
-                visit.timestamp = 0
+                visit.start_time = 0
         if cpu_usage is not None:
             for visit in scout._active:
-                visit.timestamp -= 10
+                visit.start_time -= 10
                 if idle:
-                    visit.idle_timestamp = visit.timestamp
+                    visit.idle_timestamp = visit.start_time
         # run and verify
         scout._process_active(30, idle_usage=10, idle_wait=0, min_visit=5)
         assert len(scout._active) == active
@@ -136,6 +137,7 @@ def test_site_scout_process_active(
         for entry in scout._active:
             assert not entry.puppet.close.call_count
         for entry in scout._complete:
+            assert entry.end_time > 0
             assert entry.puppet.close.call_count
             if is_healthy:
                 assert entry.puppet.dump_coverage.call_count
@@ -324,9 +326,8 @@ def test_site_scout_load_str_01(url, result):
 
 def test_site_scout_load_str_02():
     """test SiteScout.load_str() invalid scheme"""
-    with SiteScout(None) as scout:
-        with raises(ValueError):
-            scout.load_str("ftp://a.b.c")
+    with SiteScout(None) as scout, raises(ValueError):
+        scout.load_str("ftp://a.b.c")
 
 
 def test_site_scout_load_collision():

@@ -5,7 +5,7 @@ from logging import getLogger
 from pathlib import Path
 from platform import machine, system
 from tempfile import TemporaryDirectory
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from Collector.Collector import Collector
@@ -56,7 +56,7 @@ class FuzzManagerReporter:
             log_id: Log to find. Must be: 'aux', 'stderr', 'stdout'.
 
         Returns:
-            List of lines from the requested log file.
+            Lines from the requested log file.
         """
         assert log_id in ("aux", "stderr", "stdout")
 
@@ -85,11 +85,12 @@ class FuzzManagerReporter:
             )
         return None
 
-    def submit(self, result: Path) -> Tuple[int, str]:
+    def submit(self, result: Path, metadata: Dict[str, str]) -> Tuple[int, str]:
         """Submit results to a FuzzManager server.
 
         Args:
             results: Directory containing logs to submit.
+            metadata: Extra data to include in the report.
 
         Returns:
             Crash ID and the short signature.
@@ -105,7 +106,8 @@ class FuzzManagerReporter:
             self._conf,
             auxCrashData=self._read_ffpuppet_log(result, "aux"),
         )
-        crash_info.configuration.addMetadata({"url": (result / "url.txt").read_text()})
+        if metadata:
+            crash_info.configuration.addMetadata(metadata)
 
         with TemporaryDirectory(prefix="fm-report", dir=self._working_path) as tmp_dir:
             # add result to a zip file
