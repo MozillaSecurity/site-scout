@@ -29,6 +29,19 @@ NO_SUBDOMAIN = "*"
 UrlDB = NewType("UrlDB", Dict[str, Dict[str, List[str]]])
 
 
+def trim(in_str: str, max_len: int) -> str:
+    """Trim in_str if it exceeds max_len.
+
+    Args:
+        in_str: String to trim if required.
+        max_len: Maximum length of output.
+
+    Returns:
+        Modified string or original string depending on max_len.
+    """
+    return f"{in_str[:max_len - 3]}..." if len(in_str) > max_len else in_str
+
+
 class Status:
     """Track and report status to a file."""
 
@@ -438,11 +451,7 @@ class SiteScout:
                         "url": str(visit.url),
                     }
                     fm_id, short_sig = self._fuzzmanager.submit(dst, metadata)
-                    LOG.info(
-                        "FuzzManager (%d): %s",
-                        fm_id,
-                        f"{short_sig[:50]}..." if len(short_sig) > 50 else short_sig,
-                    )
+                    LOG.info("FuzzManager (%d): %s", fm_id, trim(short_sig, 60))
                     # remove local data when reporting to FM
                     rmtree(dst)
                 else:
@@ -536,14 +545,11 @@ class SiteScout:
 
         end_time = time() + runtime_limit if runtime_limit > 0 else 0
         last_visit: Dict[str, float] = {}
-        next_url: Optional[URL] = None
         status = Status(status_report) if status_report else None
         total_results = 0
         total_urls = len(self._urls)
         total_visits = 0
         while self._urls or self._active:
-            assert next_url is None
-
             # perform status report
             if status:
                 status.report(
@@ -554,34 +560,26 @@ class SiteScout:
                     total_results,
                 )
 
-            # select url to visit
+            # select url to visit and launch browser
             if self._urls and (len(self._active) < instance_limit):
                 next_url = self._urls.pop()
-                # avoid hammering specific domains by using rate limit
+                # avoid frequent domain visits by rate limiting
                 if time() - last_visit.get(next_url.domain, 0) < domain_rate_limit:
                     LOG.debug("domain rate limit hit (%s)", next_url.domain)
                     self._urls.insert(0, next_url)
-                    next_url = None
-
-            # launch browser and visit url
-            if next_url:
-                url_str = str(next_url)
-                total_visits += 1
-                LOG.info(
-                    "[%02d/%02d] %r",
-                    total_visits,
-                    total_urls,
-                    f"{url_str[:80]}..." if len(url_str) > 80 else url_str,
-                )
-                self._launch(next_url, log_path=log_path)
-                LOG.debug(
-                    "launched browser visiting [%s] %s",
-                    next_url.uid[:8],
-                    f"{url_str[:80]}..." if len(url_str) > 80 else url_str,
-                )
-                last_visit[next_url.domain] = time()
-                next_url = None
-                assert self._active
+                # launch browser and visit url
+                else:
+                    short_url = trim(str(next_url), 80)
+                    total_visits += 1
+                    LOG.info("[%02d/%02d] %r", total_visits, total_urls, short_url)
+                    self._launch(next_url, log_path=log_path)
+                    LOG.debug(
+                        "launched browser visiting [%s] %s",
+                        next_url.uid[:8],
+                        short_url,
+                    )
+                    last_visit[next_url.domain] = time()
+                    assert self._active
 
             # check for complete processes
             self._process_active(time_limit)
@@ -613,7 +611,7 @@ class SiteScout:
                 total_results,
                 force=True,
             )
-        LOG.info("URLs visited %d, results reported %d", total_visits, total_results)
+        LOG.info("URL visits %d, results reported %d", total_visits, total_results)
 
 
 # pylint: disable=too-many-return-statements
