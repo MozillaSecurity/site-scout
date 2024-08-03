@@ -54,9 +54,9 @@ class UrlCollection:
         Returns:
             URL object if successfully parsed otherwise None.
         """
-        if "://" in url:
-            url = url.split("://", maxsplit=1)[-1]
-        parsed_url = urlsplit(f"http://{url}", allow_fragments=False)
+        if "://" not in url:
+            url = f"http://{url}"
+        parsed_url = urlsplit(url, allow_fragments=False)
         # TODO: handle params? check for spaces and unsupported chars?
         assert parsed_url.netloc
         # URL domain info
@@ -65,14 +65,13 @@ class UrlCollection:
             return None
         assert udi.domain, f"{parsed_url.netloc} -> {udi}"
         assert udi.suffix, f"{parsed_url.netloc} -> {udi}"
-        domain = f"{udi.domain.lower()}.{udi.suffix.lower()}"
         path = parsed_url.path.strip() or "/"
         if parsed_url.query:
             path = f"{path}?{parsed_url.query}"
         return URL(
-            domain,
+            f"{udi.domain}.{udi.suffix}",
             # replace empty/missing subdomain with placeholder
-            subdomain=udi.subdomain.lower() if udi.subdomain else default_subdomain,
+            subdomain=udi.subdomain if udi.subdomain else default_subdomain,
             path=path,
         )
 

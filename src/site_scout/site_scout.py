@@ -331,13 +331,11 @@ class SiteScout:
             None
         """
         assert url
-        if "://" in url:
-            scheme = url.split("://", maxsplit=1)[0]
-            if scheme.lower() not in URL.ALLOWED_SCHEMES:
-                raise ValueError(f"Unsupported scheme in URL: {scheme}")
-        else:
+        if "://" not in url:
             url = f"http://{url}"
         parsed = urlsplit(url, allow_fragments=False)
+        if parsed.scheme not in URL.ALLOWED_SCHEMES:
+            raise ValueError(f"Unsupported scheme in URL: {parsed.scheme}")
         path = parsed.path if parsed.path else "/"
         if parsed.query:
             path = f"{path}?{parsed.query}"
