@@ -7,10 +7,11 @@ from logging import getLogger
 from pathlib import Path
 from random import shuffle
 from shutil import rmtree
+from string import punctuation
 from tempfile import gettempdir
 from time import gmtime, sleep, strftime, time
 from typing import Any, Dict, List, NewType, Optional
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from ffpuppet import BrowserTimeoutError, Debugger, FFPuppet, LaunchError, Reason
 
@@ -107,10 +108,16 @@ class URL:
         assert domain
         assert path.startswith("/")
         assert subdomain is None or subdomain
-        self.domain = domain.lower()
         self.scheme = scheme.lower()
         assert self.scheme in self.ALLOWED_SCHEMES
-        self.subdomain = subdomain.lower() if subdomain else None
+        # use idna to encode domain with non ascii characters
+        self.domain = domain.lower().encode("idna").decode()
+        self.subdomain = (
+            subdomain.lower().encode("idna").decode() if subdomain else None
+        )
+        # percent encode non ascii characters in path if needed
+        if not self.is_ascii(path):
+            path = quote(path, safe=punctuation)
         self.path = path
         self._uid: Optional[str] = None
 
@@ -118,6 +125,18 @@ class URL:
         if self.subdomain is None:
             return f"{self.scheme}://{self.domain}{self.path}"
         return f"{self.scheme}://{self.subdomain}.{self.domain}{self.path}"
+
+    @staticmethod
+    def is_ascii(data: str) -> bool:
+        """Check if all characters in a string are ASCII.
+
+        Args:
+            data: String to check.
+
+        Returns:
+            True if string only contains ASCII characters otherwise False.
+        """
+        return all(ord(x) < 128 for x in data)
 
     @property
     def uid(self) -> str:
@@ -194,8 +213,8 @@ class SiteScout:
         self._cert_files = cert_files
         self._coverage = coverage
         self._debugger = debugger
-        self._extension = extension
         self._display = display
+        self._extension = extension
         self._launch_timeout = launch_timeout
         self._log_limit = log_limit
         self._memory_limit = memory_limit

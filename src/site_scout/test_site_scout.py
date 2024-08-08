@@ -24,6 +24,12 @@ from .site_scout import URL, SiteScout, Status, Visit, verify_dict
         ("aB.cD", "Ab", "/Ef", "HTTP", "http://ab.ab.cd/Ef"),
         # normalize case (missing subdomain)
         ("aB.cD", None, "/Ef", "HTTP", "http://ab.cd/Ef"),
+        # idna encode domain
+        ("é.c", "ò", "/", "http", "http://xn--jda.xn--9ca.c/"),
+        # percent encode non ascii chars path
+        ("a.c", None, "/ñ%41=1", "http", "http://a.c/%C3%B1%41=1"),
+        # previously encoded path
+        ("a.c", None, "/%C3%B1o", "http", "http://a.c/%C3%B1o"),
     ],
 )
 def test_url_01(domain, subdomain, path, scheme, expected):

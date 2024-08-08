@@ -57,7 +57,7 @@ class UrlCollection:
         if "://" not in url:
             url = f"http://{url}"
         parsed_url = urlsplit(url, allow_fragments=False)
-        # TODO: handle params? check for spaces and unsupported chars?
+        # TODO: handle params?
         assert parsed_url.netloc
         # URL domain info
         udi = extract(parsed_url.netloc)
