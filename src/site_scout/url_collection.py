@@ -1,10 +1,12 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+from __future__ import annotations
+
 from argparse import ArgumentParser, Namespace
 from logging import DEBUG, INFO, getLogger
 from pathlib import Path
-from typing import Generator, List, Optional, Set, cast
+from typing import Generator, cast
 from urllib.parse import urlsplit
 
 from tldextract import extract
@@ -26,9 +28,9 @@ class UrlCollection:
 
     __slots__ = ("_db", "unparsable")
 
-    def __init__(self, url_db: Optional[UrlDB] = None) -> None:
+    def __init__(self, url_db: UrlDB | None = None) -> None:
         self._db = url_db or cast(UrlDB, {})
-        self.unparsable: Set[str] = set()
+        self.unparsable: set[str] = set()
 
     def __len__(self) -> int:
         count = 0
@@ -44,7 +46,7 @@ class UrlCollection:
                     yield URL(domain, subdomain=sub, path=path)
 
     @staticmethod
-    def _parse_url(url: str, default_subdomain: str = NO_SUBDOMAIN) -> Optional[URL]:
+    def _parse_url(url: str, default_subdomain: str = NO_SUBDOMAIN) -> URL | None:
         """Parse URL from given string.
 
         Args:
@@ -96,7 +98,7 @@ class UrlCollection:
                     added += 1
         return added
 
-    def add_url(self, url: str) -> Optional[URL]:
+    def add_url(self, url: str) -> URL | None:
         """Load a single URL and add it to the list of known URLs.
 
         Args:
@@ -163,7 +165,7 @@ class UrlCollection:
         return True
 
     @classmethod
-    def load_yml(cls, src: Path) -> Optional["UrlCollection"]:
+    def load_yml(cls, src: Path) -> UrlCollection | None:
         """Load UrlCollection from a YML file.
 
         Args:
@@ -190,7 +192,7 @@ class UrlCollection:
             dump(self._db, out_fp, Dumper=SafeDumper, default_style="'")
 
 
-def parse_args(argv: Optional[List[str]] = None) -> Namespace:
+def parse_args(argv: list[str] | None = None) -> Namespace:
     """Argument parsing"""
     parser = ArgumentParser(description="Manage URL collections used by Site-scout.")
     parser.add_argument("url_db", type=Path, help="YML file containing data.")
@@ -222,7 +224,7 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
 
 
 # pylint: disable=too-many-branches
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """Main function"""
     args = parse_args(argv)
     init_logging(args.log_level)

@@ -1,6 +1,8 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+from __future__ import annotations
+
 from datetime import timedelta
 from hashlib import sha1
 from logging import getLogger
@@ -10,7 +12,7 @@ from shutil import rmtree
 from string import punctuation
 from tempfile import gettempdir
 from time import gmtime, sleep, strftime, time
-from typing import Any, Dict, List, NewType, Optional
+from typing import Any, NewType
 from urllib.parse import quote, urlsplit
 
 from ffpuppet import BrowserTimeoutError, Debugger, FFPuppet, LaunchError, Reason
@@ -27,7 +29,7 @@ TMP_PATH.mkdir(exist_ok=True, parents=True)
 NO_SUBDOMAIN = "*"
 
 # Note: Python 3.10+ use TypeAlias
-UrlDB = NewType("UrlDB", Dict[str, Dict[str, List[str]]])
+UrlDB = NewType("UrlDB", dict[str, dict[str, list[str]]])
 
 
 def trim(in_str: str, max_len: int) -> str:
@@ -101,7 +103,7 @@ class URL:
     def __init__(
         self,
         domain: str,
-        subdomain: Optional[str] = None,
+        subdomain: str | None = None,
         path: str = "/",
         scheme: str = "http",
     ) -> None:
@@ -119,7 +121,7 @@ class URL:
         if not self.is_ascii(path):
             path = quote(path, safe=punctuation)
         self.path = path
-        self._uid: Optional[str] = None
+        self._uid: str | None = None
 
     def __str__(self) -> str:
         if self.subdomain is None:
@@ -161,8 +163,8 @@ class Visit:
     __slots__ = ("end_time", "idle_timestamp", "puppet", "url", "start_time")
 
     def __init__(self, puppet: FFPuppet, url: URL, start_time: float) -> None:
-        self.end_time: Optional[float] = None
-        self.idle_timestamp: Optional[float] = None
+        self.end_time: float | None = None
+        self.idle_timestamp: float | None = None
         self.puppet = puppet
         self.url = url
         self.start_time = start_time
@@ -193,21 +195,21 @@ class SiteScout:
     def __init__(
         self,
         binary: Path,
-        profile: Optional[Path] = None,
-        prefs_js: Optional[Path] = None,
+        profile: Path | None = None,
+        prefs_js: Path | None = None,
         debugger: Debugger = Debugger.NONE,
-        display: Optional[str] = None,
+        display: str | None = None,
         launch_timeout: int = 180,
         log_limit: int = 0,
         memory_limit: int = 0,
-        extension: Optional[List[Path]] = None,
-        cert_files: Optional[List[Path]] = None,
+        extension: list[Path] | None = None,
+        cert_files: list[Path] | None = None,
         fuzzmanager: bool = False,
         coverage: bool = False,
     ) -> None:
-        self._active: List[Visit] = []
-        self._complete: List[Visit] = []
-        self._urls: List[URL] = []
+        self._active: list[Visit] = []
+        self._complete: list[Visit] = []
+        self._urls: list[URL] = []
         # browser related
         self._binary = binary
         self._cert_files = cert_files
@@ -221,11 +223,11 @@ class SiteScout:
         self._prefs = prefs_js
         self._profile = profile
         # reporter
-        self._fuzzmanager: Optional[FuzzManagerReporter] = (
+        self._fuzzmanager: FuzzManagerReporter | None = (
             FuzzManagerReporter(binary, working_path=TMP_PATH) if fuzzmanager else None
         )
 
-    def __enter__(self) -> "SiteScout":
+    def __enter__(self) -> SiteScout:
         return self
 
     def __exit__(self, *exc: Any) -> None:
@@ -249,7 +251,7 @@ class SiteScout:
         self._complete.clear()
 
     def _launch(
-        self, url: URL, launch_attempts: int = 3, log_path: Optional[Path] = None
+        self, url: URL, launch_attempts: int = 3, log_path: Path | None = None
     ) -> None:
         """Launch a new browser instance and visit provided URL.
 
@@ -263,7 +265,7 @@ class SiteScout:
         """
         assert launch_attempts > 0
 
-        env_mod: Dict[str, Optional[str]] = {"MOZ_CRASHREPORTER_SHUTDOWN": "1"}
+        env_mod: dict[str, str | None] = {"MOZ_CRASHREPORTER_SHUTDOWN": "1"}
 
         ffp = None
         success = False
@@ -401,7 +403,7 @@ class SiteScout:
         assert idle_usage >= 0
         assert idle_wait >= 0
 
-        complete: List[int] = []
+        complete: list[int] = []
         for index, visit in enumerate(self._active):
             # check if work is complete
             visit_runtime = time() - visit.start_time
@@ -531,7 +533,7 @@ class SiteScout:
         check_delay: float = 1.0,
         domain_rate_limit: int = 20,
         instance_limit: int = 1,
-        status_report: Optional[Path] = None,
+        status_report: Path | None = None,
         result_limit: int = 0,
         runtime_limit: int = 0,
     ) -> None:
@@ -563,7 +565,7 @@ class SiteScout:
             LOG.info("Runtime limit is %02d:%02d:%02d", hours, minutes, seconds)
 
         end_time = time() + runtime_limit if runtime_limit > 0 else 0
-        last_visit: Dict[str, float] = {}
+        last_visit: dict[str, float] = {}
         status = Status(status_report) if status_report else None
         total_results = 0
         total_urls = len(self._urls)
@@ -634,7 +636,7 @@ class SiteScout:
 
 
 # pylint: disable=too-many-return-statements
-def verify_dict(data: Any, allow_empty: bool = False) -> Optional[str]:
+def verify_dict(data: Any, allow_empty: bool = False) -> str | None:
     """Verify the structure of data.
 
     Args:

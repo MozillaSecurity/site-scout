@@ -4,7 +4,7 @@
 from logging import DEBUG, basicConfig, getLogger
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Iterator, List, Optional
+from typing import Iterator
 
 from ffpuppet import LaunchError
 from prefpicker import PrefPicker
@@ -41,7 +41,7 @@ def init_logging(level: int) -> None:
     basicConfig(format=log_fmt, datefmt="%H:%M:%S", level=level)
 
 
-def generate_prefs(dst: Optional[Path] = None, variant: str = "a11y") -> Path:
+def generate_prefs(dst: Path | None = None, variant: str = "a11y") -> Path:
     """Generate prefs.js file via PrefPicker.
 
     Arguments:
@@ -59,7 +59,7 @@ def generate_prefs(dst: Optional[Path] = None, variant: str = "a11y") -> Path:
     return prefs
 
 
-def load_input(src: List[Path], allow_empty: bool = False) -> Iterator[UrlDB]:
+def load_input(src: list[Path], allow_empty: bool = False) -> Iterator[UrlDB]:
     """Load data from filesystem.
 
     Arguments:
@@ -84,7 +84,7 @@ def load_input(src: List[Path], allow_empty: bool = False) -> Iterator[UrlDB]:
         yield data
 
 
-def scan_input(src: List[Path]) -> Iterator[Path]:
+def scan_input(src: list[Path]) -> Iterator[Path]:
     """Scan list of inputs which can include files or directories.
 
     Arguments:
@@ -100,7 +100,7 @@ def scan_input(src: List[Path]) -> Iterator[Path]:
             yield entry
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """Main function"""
     args = parse_args(argv)
     assert any(args.input) != any(args.url)
