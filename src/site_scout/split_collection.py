@@ -1,10 +1,12 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+from __future__ import annotations
+
 from argparse import ArgumentParser, Namespace
 from logging import DEBUG, INFO, getLogger
 from pathlib import Path
-from typing import List, Optional, cast
+from typing import cast
 
 from .main import init_logging
 from .site_scout import NO_SUBDOMAIN, UrlDB
@@ -61,7 +63,7 @@ def split_collection(
     return file_num
 
 
-def parse_args(argv: Optional[List[str]] = None) -> Namespace:
+def parse_args(argv: list[str] | None = None) -> Namespace:
     """Argument parsing"""
     parser = ArgumentParser(description="Split a URL collection used by Site-scout.")
     parser.add_argument("url_db", type=Path, help="YML file containing data.")
@@ -98,7 +100,7 @@ def parse_args(argv: Optional[List[str]] = None) -> Namespace:
 
 
 # pylint: disable=too-many-branches
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """Main function"""
     args = parse_args(argv)
     init_logging(args.log_level)

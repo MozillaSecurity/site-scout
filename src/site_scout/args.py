@@ -1,6 +1,8 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+from __future__ import annotations
+
 from argparse import ArgumentParser, Namespace
 from importlib.metadata import PackageNotFoundError, version
 from logging import DEBUG, INFO
@@ -8,7 +10,6 @@ from os import getenv
 from pathlib import Path
 from platform import system
 from shutil import which
-from typing import List, Optional
 
 from ffpuppet import Debugger
 
@@ -37,7 +38,7 @@ def is_headless() -> bool:
 
 
 # pylint: disable=too-many-branches,too-many-statements
-def parse_args(argv: Optional[List[str]] = None) -> Namespace:
+def parse_args(argv: list[str] | None = None) -> Namespace:
     """Argument parsing"""
     parser = ArgumentParser(
         prog="site-scout", description="Visit provided URLs and report results."

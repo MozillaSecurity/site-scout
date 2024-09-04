@@ -1,11 +1,12 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+from __future__ import annotations
+
 from logging import getLogger
 from pathlib import Path
 from platform import machine, system
 from tempfile import TemporaryDirectory
-from typing import Dict, List, Optional, Tuple
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from Collector.Collector import Collector
@@ -26,7 +27,7 @@ class FuzzManagerReporter:
         self,
         binary: Path,
         fm_config: Path = FM_CONFIG,
-        working_path: Optional[Path] = None,
+        working_path: Path | None = None,
     ) -> None:
         self._working_path = working_path
 
@@ -48,7 +49,7 @@ class FuzzManagerReporter:
             )
 
     @staticmethod
-    def _read_ffpuppet_log(log_path: Path, log_id: str) -> Optional[List[str]]:
+    def _read_ffpuppet_log(log_path: Path, log_id: str) -> list[str] | None:
         """Read logs created by FFPuppet.
 
         Args:
@@ -60,7 +61,7 @@ class FuzzManagerReporter:
         """
         assert log_id in ("aux", "stderr", "stdout")
 
-        log_file: Optional[Path] = None
+        log_file: Path | None = None
         if log_id == "aux":
             # look for sanitizer logs
             for entry in log_path.glob("log_*.txt"):
@@ -85,7 +86,7 @@ class FuzzManagerReporter:
             )
         return None
 
-    def submit(self, result: Path, metadata: Dict[str, str]) -> Tuple[int, str]:
+    def submit(self, result: Path, metadata: dict[str, str]) -> tuple[int, str]:
         """Submit results to a FuzzManager server.
 
         Args:
