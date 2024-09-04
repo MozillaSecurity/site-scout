@@ -39,7 +39,7 @@ class UrlCollection:
                 count += len(self._db[domain][sub])
         return count
 
-    def __iter__(self) -> Generator[URL, None, None]:
+    def __iter__(self) -> Generator[URL]:
         for domain in self._db:
             for sub in self._db[domain]:
                 for path in self._db[domain][sub]:
@@ -124,7 +124,7 @@ class UrlCollection:
         return None
 
     @property
-    def domains(self) -> Generator[str, None, None]:
+    def domains(self) -> Generator[str]:
         """All known domains.
 
         Args:
