@@ -231,7 +231,7 @@ class SiteScout:
     def __enter__(self) -> SiteScout:
         return self
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         self.close()
 
     def close(self) -> None:
