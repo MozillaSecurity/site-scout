@@ -185,6 +185,8 @@ class SiteScout:
         "_display",
         "_extension",
         "_fuzzmanager",
+        "_launch_failure_limit",
+        "_launch_failures",
         "_launch_timeout",
         "_log_limit",
         "_memory_limit",
@@ -201,6 +203,7 @@ class SiteScout:
         debugger: Debugger = Debugger.NONE,
         display: str | None = None,
         launch_timeout: int = 180,
+        launch_failure_limit: int = 3,
         log_limit: int = 0,
         memory_limit: int = 0,
         extension: list[Path] | None = None,
@@ -208,6 +211,7 @@ class SiteScout:
         fuzzmanager: bool = False,
         coverage: bool = False,
     ) -> None:
+        assert launch_failure_limit > 0
         self._active: list[Visit] = []
         self._complete: list[Visit] = []
         self._urls: list[URL] = []
@@ -218,6 +222,9 @@ class SiteScout:
         self._debugger = debugger
         self._display = display
         self._extension = extension
+        self._launch_failure_limit = launch_failure_limit
+        # consecutive launch failures
+        self._launch_failures = 0
         self._launch_timeout = launch_timeout
         self._log_limit = log_limit
         self._memory_limit = memory_limit
@@ -251,72 +258,57 @@ class SiteScout:
             visit.puppet.clean_up()
         self._complete.clear()
 
-    def _launch(
-        self, url: URL, launch_attempts: int = 3, log_path: Path | None = None
-    ) -> None:
+    def _launch(self, url: URL, log_path: Path | None = None) -> bool:
         """Launch a new browser instance and visit provided URL.
 
         Args:
             url: URL to visit.
-            launch_attempts: Attempts to launch the browser before raising.
             log_path: Directory to save launch failure logs.
 
         Returns:
-            None
+            True if the browser was launched otherwise False.
         """
-        assert launch_attempts > 0
-
         env_mod: dict[str, str | None] = {"MOZ_CRASHREPORTER_SHUTDOWN": "1"}
 
-        ffp = None
-        success = False
-        for attempt in range(1, launch_attempts + 1):
-            ffp = FFPuppet(
-                debugger=self._debugger,
-                headless=self._display,
-                use_profile=self._profile,
-                working_path=str(TMP_PATH),
+        ffp = FFPuppet(
+            debugger=self._debugger,
+            headless=self._display,
+            use_profile=self._profile,
+            working_path=str(TMP_PATH),
+        )
+        try:
+            ffp.launch(
+                self._binary,
+                env_mod=env_mod,
+                location=str(url),
+                launch_timeout=self._launch_timeout,
+                log_limit=self._log_limit,
+                memory_limit=self._memory_limit,
+                prefs_js=self._prefs,
+                extension=self._extension,
+                cert_files=self._cert_files,
             )
-            try:
-                ffp.launch(
-                    self._binary,
-                    env_mod=env_mod,
-                    location=str(url),
-                    launch_timeout=self._launch_timeout,
-                    log_limit=self._log_limit,
-                    memory_limit=self._memory_limit,
-                    prefs_js=self._prefs,
-                    extension=self._extension,
-                    cert_files=self._cert_files,
-                )
-                success = True
-            except LaunchError as exc:
-                is_failure = not isinstance(exc, BrowserTimeoutError)
-                LOG.warning(
-                    "Browser launch %s (attempt %d/%d)",
-                    "failure" if is_failure else "timeout",
-                    attempt,
-                    launch_attempts,
-                )
-                if attempt == launch_attempts:
-                    # save failure
-                    if is_failure and log_path is not None:
-                        ffp.close()
-                        dst = log_path / strftime("%Y%m%d-%H%M%S-launch-failure")
-                        ffp.save_logs(dst)
-                        LOG.warning("Logs saved '%s'", dst)
-                    raise
-            finally:
-                if not success:
-                    ffp.clean_up()
-                    ffp = None
-            if success:
-                break
-            # launch attempt limit not met... retry
-            sleep(1)
+            self._launch_failures = 0
+        except LaunchError as exc:
+            self._launch_failures += 1
+            is_failure = not isinstance(exc, BrowserTimeoutError)
+            LOG.warning("Browser launch %s...", "failure" if is_failure else "timeout")
+            if self._launch_failures >= self._launch_failure_limit:
+                # save failure
+                if is_failure and log_path is not None:
+                    ffp.close()
+                    dst = log_path / strftime("%Y%m%d-%H%M%S-launch-failure")
+                    ffp.save_logs(dst)
+                    LOG.warning("Logs saved '%s'", dst)
+                raise
 
-        assert ffp is not None
-        self._active.append(Visit(ffp, url, time()))
+        finally:
+            if self._launch_failures != 0:
+                ffp.clean_up()
+
+        if self._launch_failures == 0:
+            self._active.append(Visit(ffp, url, time()))
+        return self._launch_failures == 0
 
     def load_dict(self, data: UrlDB) -> None:
         """Load URLs from a UrlDB (dict) and add to list of URLs to visit.
@@ -531,7 +523,7 @@ class SiteScout:
         self,
         log_path: Path,
         time_limit: int,
-        check_delay: float = 1.0,
+        check_delay: int = 1,
         domain_rate_limit: int = 20,
         instance_limit: int = 1,
         status_report: Path | None = None,
@@ -565,7 +557,7 @@ class SiteScout:
             hours, minutes = divmod(minutes, 60)
             LOG.info("Runtime limit is %02d:%02d:%02d", hours, minutes, seconds)
 
-        end_time = time() + runtime_limit if runtime_limit > 0 else 0
+        end_time = int(time() + runtime_limit) if runtime_limit > 0 else 0
         last_visit: dict[str, float] = {}
         status = Status(status_report) if status_report else None
         total_results = 0
@@ -590,11 +582,10 @@ class SiteScout:
                     LOG.debug("domain rate limit hit (%s)", next_url.domain)
                     self._urls.insert(0, next_url)
                 # launch browser and visit url
-                else:
+                elif self._launch(next_url, log_path=log_path):
                     short_url = trim(str(next_url), 80)
                     total_visits += 1
                     LOG.info("[%02d/%02d] %r", total_visits, total_urls, short_url)
-                    self._launch(next_url, log_path=log_path)
                     LOG.debug(
                         "launched browser visiting [%s] %s",
                         next_url.uid[:8],

@@ -3,7 +3,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 # pylint: disable=missing-docstring,protected-access
-from itertools import chain, count, cycle, repeat
+from itertools import chain, count, cycle
 
 from ffpuppet import BrowserTerminatedError, Reason
 from pytest import mark, raises
@@ -44,13 +44,30 @@ def test_site_scout_launch(mocker):
     mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
     with SiteScout(None) as scout:
         assert not scout._active
-        scout._launch("http://someurl/")
+        assert scout._launch("http://someurl/")
         assert scout._active
         assert scout._active[0].end_time is None
         assert scout._active[0].idle_timestamp is None
         assert scout._active[0].puppet is not None
         assert scout._active[0].start_time > 0
         assert scout._active[0].url == "http://someurl/"
+
+
+@mark.parametrize("max_failures", [1, 2])
+def test_site_scout_launch_failues(mocker, tmp_path, max_failures):
+    """test SiteScout._launch() failures"""
+    ffp = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
+    ffp.return_value.launch.side_effect = BrowserTerminatedError()
+    with SiteScout(None) as scout:
+        scout._launch_failure_limit = max_failures
+        if max_failures > 1:
+            assert not scout._launch("http://a/")
+            assert ffp.return_value.save_logs.call_count == 0
+        else:
+            with raises(BrowserTerminatedError):
+                scout._launch("http://a/", log_path=tmp_path)
+            assert ffp.return_value.save_logs.call_count == 1
+        assert ffp.return_value.clean_up.call_count == 1
 
 
 def test_site_scout_close(mocker):
@@ -65,34 +82,6 @@ def test_site_scout_close(mocker):
         assert not scout._complete
     assert active.puppet.clean_up.call_count == 1
     assert complete.puppet.clean_up.call_count == 1
-
-
-@mark.parametrize(
-    "attempts, failures, success",
-    [
-        # single attempt failure
-        (1, 1, False),
-        # success on second attempt
-        (2, 1, True),
-    ],
-)
-def test_site_scout_launch_retries(mocker, tmp_path, attempts, failures, success):
-    """test SiteScout._launch()"""
-    mocker.patch("site_scout.site_scout.sleep", autospec=True)
-    ffp = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
-    ffp.return_value.launch.side_effect = chain(
-        repeat(BrowserTerminatedError(), failures), cycle([None])
-    )
-    with SiteScout(None) as scout:
-        assert not scout._active
-        if success:
-            scout._launch("http://a/", launch_attempts=attempts)
-            assert ffp.return_value.save_logs.call_count == 0
-        else:
-            with raises(BrowserTerminatedError):
-                scout._launch("http://a/", launch_attempts=attempts, log_path=tmp_path)
-            assert ffp.return_value.save_logs.call_count == 1
-        assert ffp.return_value.clean_up.call_count == failures
 
 
 @mark.parametrize(
