@@ -6,7 +6,7 @@ from __future__ import annotations
 from argparse import ArgumentParser, Namespace
 from logging import DEBUG, INFO, getLogger
 from pathlib import Path
-from typing import Generator, cast
+from typing import TYPE_CHECKING, cast
 from urllib.parse import urlsplit
 
 from tldextract import extract
@@ -19,6 +19,9 @@ except ImportError:
 
 from .main import init_logging, load_input
 from .site_scout import NO_SUBDOMAIN, URL, UrlDB
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 LOG = getLogger(__name__)
 
