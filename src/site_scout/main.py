@@ -6,7 +6,7 @@ from __future__ import annotations
 from logging import DEBUG, basicConfig, getLogger
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Iterator
+from typing import TYPE_CHECKING
 
 from ffpuppet import LaunchError
 from prefpicker import PrefPicker
@@ -23,6 +23,9 @@ from yaml.scanner import ScannerError
 
 from .args import parse_args
 from .site_scout import SiteScout, UrlDB, verify_dict
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 LOG = getLogger(__name__)
 

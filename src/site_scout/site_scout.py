@@ -12,7 +12,7 @@ from shutil import rmtree
 from string import punctuation
 from tempfile import gettempdir
 from time import gmtime, sleep, strftime, time
-from typing import Any, Dict, List, NewType
+from typing import Any, NewType
 from urllib.parse import quote, urlsplit
 
 from ffpuppet import BrowserTimeoutError, Debugger, FFPuppet, LaunchError, Reason
@@ -28,9 +28,8 @@ TMP_PATH.mkdir(exist_ok=True, parents=True)
 # WARNING: If this changes all yml files will need to be updated
 NO_SUBDOMAIN = "*"
 
-# Python 3.8 requires typing.Dict and typing.List even with __future__.annotations here
 # Note: Python 3.10+ use TypeAlias
-UrlDB = NewType("UrlDB", Dict[str, Dict[str, List[str]]])
+UrlDB = NewType("UrlDB", dict[str, dict[str, list[str]]])
 
 
 def trim(in_str: str, max_len: int) -> str:
