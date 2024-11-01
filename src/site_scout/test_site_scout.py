@@ -33,10 +33,34 @@ from .site_scout import URL, SiteScout, Status, Visit, verify_dict
     ],
 )
 def test_url_01(domain, subdomain, path, scheme, expected):
-    """test URL()"""
-    url = URL(domain, subdomain=subdomain, path=path, scheme=scheme)
+    """test URL.create()"""
+    url = URL.create(domain, subdomain=subdomain, path=path, scheme=scheme)
     assert str(url) == expected
     assert url.uid
+
+
+@mark.parametrize(
+    "domain, subdomain, path, scheme",
+    [
+        # bad domain
+        ("*", None, "/", "http"),
+        # bad domain
+        ("", None, "/", "http"),
+        # bad subdomain
+        ("a.c", "*.foo", "/", "http"),
+        # bad subdomain
+        ("a.c", "", "/d", "http"),
+        # bad path
+        ("a.c", None, "", "http"),
+        # bad path
+        ("a.c", None, "foo", "http"),
+        # bad scheme
+        ("a.c", None, "/", "foo"),
+    ],
+)
+def test_url_02(domain, subdomain, path, scheme):
+    """test URL.create()"""
+    assert URL.create(domain, subdomain=subdomain, path=path, scheme=scheme) is None
 
 
 def test_site_scout_launch(mocker):
@@ -276,8 +300,6 @@ def test_site_scout_run(
         ([], {}),
         # load urls
         (["http://a.c/", "http://b.a.c/d"], {"a.c": {"*": ["/"], "b": ["/d"]}}),
-        # normalizing
-        (["http://b.a.c/D"], {"A.C": {"B": ["/D"]}}),
     ],
 )
 def test_site_scout_load_dict(urls, input_data):

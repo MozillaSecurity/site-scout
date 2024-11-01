@@ -8,6 +8,7 @@ from hashlib import sha1
 from logging import getLogger
 from pathlib import Path
 from random import shuffle
+from re import compile as re_compile
 from shutil import rmtree
 from string import punctuation
 from tempfile import gettempdir
@@ -97,6 +98,7 @@ class URL:
     """URL components."""
 
     ALLOWED_SCHEMES = frozenset(("http", "https"))
+    VALID_DOMAIN = re_compile(r"[a-zA-Z0-9_.-]")
 
     __slots__ = ("domain", "scheme", "subdomain", "path", "_uid")
 
@@ -107,20 +109,10 @@ class URL:
         path: str = "/",
         scheme: str = "http",
     ) -> None:
-        assert domain
-        assert path.startswith("/")
-        assert subdomain is None or subdomain
-        self.scheme = scheme.lower()
-        assert self.scheme in self.ALLOWED_SCHEMES
-        # use idna to encode domain with non ascii characters
-        self.domain = domain.lower().encode("idna").decode()
-        self.subdomain = (
-            subdomain.lower().encode("idna").decode() if subdomain else None
-        )
-        # percent encode non ascii characters in path if needed
-        if not self.is_ascii(path):
-            path = quote(path, safe=punctuation)
+        self.domain = domain
         self.path = path
+        self.scheme = scheme
+        self.subdomain = subdomain
         self._uid: str | None = None
 
     def __str__(self) -> str:
@@ -139,6 +131,55 @@ class URL:
             True if string only contains ASCII characters otherwise False.
         """
         return all(ord(x) < 128 for x in data)
+
+    @classmethod
+    def create(
+        cls,
+        domain: str,
+        subdomain: str | None = None,
+        path: str = "/",
+        scheme: str = "http",
+    ) -> URL | None:
+        """Sanitize, verify data and create a URL if possible.
+
+        Args:
+            domain: Domain.
+            subdomain: Subdomain.
+            path: Path, must begin with '/'.
+            scheme: Scheme.
+
+        Returns:
+            URL object if input is valid otherwise None.
+        """
+        scheme = scheme.lower()
+        if scheme not in cls.ALLOWED_SCHEMES:
+            LOG.error("Cannot create URL: Invalid scheme %r", scheme)
+            return None
+
+        # use idna to encode domain with non ascii characters
+        domain = domain.lower().encode("idna").decode("ascii")
+        if not cls.VALID_DOMAIN.match(domain):
+            LOG.error("Cannot create URL: Invalid domain %r", domain)
+            return None
+
+        if subdomain is not None and subdomain != NO_SUBDOMAIN:
+            if not subdomain:
+                LOG.error("Cannot create URL: Empty subdomain")
+                return None
+            subdomain = subdomain.lower().encode("idna").decode("ascii")
+            if not cls.VALID_DOMAIN.match(subdomain):
+                LOG.error("Cannot create URL: Invalid subdomain %r", subdomain)
+                return None
+
+        if not path.startswith("/"):
+            LOG.error("Cannot create URL: Path must begin with '/'")
+            return None
+
+        # percent encode non ascii characters in path if needed
+        if not cls.is_ascii(path):
+            path = quote(path, safe=punctuation)
+
+        return cls(domain, subdomain=subdomain, path=path, scheme=scheme)
 
     @property
     def uid(self) -> str:
@@ -366,7 +407,8 @@ class SiteScout:
         if parsed.query:
             path = f"{path}?{parsed.query}"
         # this currently does not separate domain and subdomain
-        formatted = URL(parsed.netloc, path=path, scheme=parsed.scheme)
+        formatted = URL.create(parsed.netloc, path=path, scheme=parsed.scheme)
+        assert formatted is not None
         # this might get slow with large lists
         if formatted.uid not in {x.uid for x in self._urls}:
             self._urls.append(formatted)
