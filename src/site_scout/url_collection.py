@@ -66,14 +66,14 @@ class UrlCollection:
         assert parsed_url.netloc
         # URL domain info
         udi = extract(parsed_url.netloc)
-        if not udi.domain or not udi.suffix:
+        if not udi.domain or not udi.suffix or udi.subdomain == NO_SUBDOMAIN:
             return None
         assert udi.domain, f"{parsed_url.netloc} -> {udi}"
         assert udi.suffix, f"{parsed_url.netloc} -> {udi}"
         path = parsed_url.path.strip() or "/"
         if parsed_url.query:
             path = f"{path}?{parsed_url.query}"
-        return URL(
+        return URL.create(
             f"{udi.domain}.{udi.suffix}",
             # replace empty/missing subdomain with placeholder
             subdomain=udi.subdomain if udi.subdomain else default_subdomain,

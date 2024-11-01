@@ -34,6 +34,7 @@ BASIC_URL_DB = {
         ("HTTP://SUB.DOMAIN.COM/TEST", "http://sub.domain.com/TEST"),
         ("domain.com/El Niño", "http://domain.com/El%20Ni%C3%B1o"),
         ("fóò.café.fr/test", "http://xn--f-tgac.xn--caf-dma.fr/test"),
+        ("*.domain.com", None),
         ("failed-parse", None),
     ],
 )
