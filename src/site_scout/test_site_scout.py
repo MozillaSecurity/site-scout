@@ -265,7 +265,7 @@ def test_site_scout_run(
         dst_path.mkdir(exist_ok=True)
 
     mocker.patch("site_scout.site_scout.sleep", autospec=True)
-    mocker.patch("site_scout.site_scout.time", autospec=True, side_effect=count())
+    mocker.patch("site_scout.site_scout.perf_counter", side_effect=count())
     ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
     reporter = mocker.patch("site_scout.site_scout.FuzzManagerReporter", autospec=True)
     reporter.return_value.submit.return_value = (1337, "[@ sig]")
@@ -376,9 +376,7 @@ def test_site_scout_status(
     mocker, tmp_path, active, jobs, completed, target, results, force
 ):
     """test Status()"""
-    mocker.patch(
-        "site_scout.site_scout.time", autospec=True, side_effect=count(start=1)
-    )
+    mocker.patch("site_scout.site_scout.perf_counter", side_effect=count(start=1))
     dst = tmp_path / "status.txt"
     status = Status(dst, rate_limit=2)
     assert status

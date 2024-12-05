@@ -12,7 +12,7 @@ from re import compile as re_compile
 from shutil import rmtree
 from string import punctuation
 from tempfile import gettempdir
-from time import gmtime, sleep, strftime, time
+from time import gmtime, perf_counter, sleep, strftime
 from typing import Any, NewType
 from urllib.parse import quote, urlsplit
 
@@ -57,7 +57,7 @@ class Status:
         self._dst = dst
         self._next: float = 0
         self._rate_limit = rate_limit
-        self._start = time()
+        self._start = perf_counter()
 
     def report(
         self,
@@ -81,7 +81,7 @@ class Status:
         Returns:
             None
         """
-        now = time()
+        now = perf_counter()
         if not force and self._next > now:
             return
         comp_pct = (completed / target) * 100 if target else 0.0
@@ -347,7 +347,7 @@ class SiteScout:
                 ffp.clean_up()
 
         if self._launch_failures == 0:
-            self._active.append(Visit(ffp, url, time()))
+            self._active.append(Visit(ffp, url, perf_counter()))
         return self._launch_failures == 0
 
     def load_dict(self, data: UrlDB) -> None:
@@ -440,22 +440,22 @@ class SiteScout:
         complete: list[int] = []
         for index, visit in enumerate(self._active):
             # check if work is complete
-            visit_runtime = time() - visit.start_time
+            visit_runtime = perf_counter() - visit.start_time
             if not visit.puppet.is_healthy():
-                visit.end_time = time()
+                visit.end_time = perf_counter()
                 visit.puppet.close()
                 complete.append(index)
             elif visit_runtime >= time_limit:
                 LOG.debug("visit timeout (%s)", visit.url.uid[:8])
                 if self._coverage:
                     visit.puppet.dump_coverage()
-                visit.end_time = time()
+                visit.end_time = perf_counter()
                 visit.puppet.close()
                 complete.append(index)
             # check all browser processes are below idle limit
             elif idle_usage and visit_runtime >= min_visit:
                 if all(x[1] < idle_usage for x in visit.puppet.cpu_usage()):
-                    now = time()
+                    now = perf_counter()
                     if visit.idle_timestamp is None:
                         LOG.debug("set idle (%s)", visit.url.uid[:8])
                         visit.idle_timestamp = now
@@ -463,7 +463,7 @@ class SiteScout:
                         LOG.debug("visit idle (%s)", visit.url.uid[:8])
                         if self._coverage:
                             visit.puppet.dump_coverage()
-                        visit.end_time = time()
+                        visit.end_time = perf_counter()
                         visit.puppet.close()
                         complete.append(index)
                 elif visit.idle_timestamp is not None:
@@ -598,7 +598,7 @@ class SiteScout:
             hours, minutes = divmod(minutes, 60)
             LOG.info("Runtime limit is %02d:%02d:%02d", hours, minutes, seconds)
 
-        end_time = int(time() + runtime_limit) if runtime_limit > 0 else 0
+        end_time = int(perf_counter() + runtime_limit) if runtime_limit > 0 else 0
         last_visit: dict[str, float] = {}
         status = Status(status_report) if status_report else None
         total_results = 0
@@ -619,7 +619,9 @@ class SiteScout:
             if self._urls and (len(self._active) < instance_limit):
                 next_url = self._urls.pop()
                 # avoid frequent domain visits by rate limiting
-                if time() - last_visit.get(next_url.domain, 0) < domain_rate_limit:
+                if (
+                    perf_counter() - last_visit.get(next_url.domain, 0)
+                ) < domain_rate_limit:
                     LOG.debug("domain rate limit hit (%s)", next_url.domain)
                     self._urls.insert(0, next_url)
                 # launch browser and visit url
@@ -632,7 +634,7 @@ class SiteScout:
                         next_url.uid[:8],
                         short_url,
                     )
-                    last_visit[next_url.domain] = time()
+                    last_visit[next_url.domain] = perf_counter()
                     assert self._active
 
             # check for complete processes
@@ -645,7 +647,7 @@ class SiteScout:
                 self._skip_remaining()
                 assert not self._active
                 assert not self._urls
-            elif 0 < end_time <= time():
+            elif 0 < end_time <= perf_counter():
                 LOG.info("Runtime limit (%ds) hit", runtime_limit)
                 self._skip_remaining()
                 assert not self._active
