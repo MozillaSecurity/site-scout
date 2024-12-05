@@ -83,7 +83,7 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
         "--log-level",
         choices=sorted(level_map),
         default="INFO",
-        help="Configure console logging (default: %(default)s).",
+        help="Configure console output (default: %(default)s).",
     )
     parser.add_argument(
         "--log-limit",
