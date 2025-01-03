@@ -2,7 +2,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-# pylint: disable=missing-docstring,protected-access
+# pylint: disable=protected-access
 from itertools import chain, count, cycle
 
 from ffpuppet import BrowserTerminatedError, Reason
@@ -63,18 +63,53 @@ def test_url_02(domain, subdomain, path, scheme):
     assert URL.create(domain, subdomain=subdomain, path=path, scheme=scheme) is None
 
 
-def test_site_scout_launch(mocker):
+@mark.parametrize("explore", [False, True])
+def test_visit_basic(mocker, explore):
+    """test Visit"""
+    exp = mocker.patch("site_scout.site_scout.Explorer", autospec=True).return_value
+    puppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True).return_value
+    visit = Visit(puppet, URL("foo"), explorer=exp if explore else None)
+    assert visit.is_active()
+    assert visit.duration() != visit.duration()
+    assert visit.puppet == puppet
+    assert puppet.close.call_count == 0
+    assert puppet.clean_up.call_count == 0
+    if explore:
+        assert visit.explorer == exp
+        assert exp.close.call_count == 0
+    else:
+        assert visit.explorer is None
+    visit.close()
+    assert not visit.is_active()
+    assert visit.duration() == visit.duration()
+    assert puppet.close.call_count == 1
+    assert puppet.clean_up.call_count == 0
+    if explore:
+        assert exp.close.call_count == 1
+    visit.cleanup()
+    assert puppet.close.call_count == 1
+    assert puppet.clean_up.call_count == 1
+    if explore:
+        assert exp.close.call_count == 1
+
+
+@mark.parametrize("explore", [False, True])
+def test_site_scout_launch(mocker, explore):
     """test SiteScout._launch()"""
+    mocker.patch("site_scout.site_scout.Explorer", autospec=True)
     mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
-    with SiteScout(None) as scout:
+    with SiteScout(None, explore=explore) as scout:
         assert not scout._active
-        assert scout._launch("http://someurl/")
+        assert scout._launch(URL("someurl"))
         assert scout._active
-        assert scout._active[0].end_time is None
+        assert scout._active[0].is_active()
         assert scout._active[0].idle_timestamp is None
         assert scout._active[0].puppet is not None
-        assert scout._active[0].start_time > 0
-        assert scout._active[0].url == "http://someurl/"
+        assert str(scout._active[0].url) == "http://someurl/"
+        if explore:
+            assert scout._active[0].explorer is not None
+        else:
+            assert scout._active[0].explorer is None
 
 
 @mark.parametrize("max_failures", [1, 2])
@@ -98,43 +133,47 @@ def test_site_scout_close(mocker):
     """test SiteScout.close()"""
     active = mocker.Mock(spec_set=Visit)
     complete = mocker.Mock(spec_set=Visit)
-    with SiteScout(None) as scout:
+    with SiteScout(None, explore=True) as scout:
         scout._active = [active]
         scout._complete = [complete]
         scout.close()
         assert not scout._active
         assert not scout._complete
-    assert active.puppet.clean_up.call_count == 1
-    assert complete.puppet.clean_up.call_count == 1
+    assert active.cleanup.call_count == 1
+    assert complete.cleanup.call_count == 1
 
 
 @mark.parametrize(
-    "urls, is_healthy, timeout, cpu_usage, idle, active",
+    "urls, is_healthy, timeout, cpu_usage, idle, active, explore",
     [
         # no urls to process
-        ([], True, False, None, False, 0),
+        ([], True, False, None, False, 0, False),
         # one active
-        ([URL("foo")], True, False, None, False, 1),
+        ([URL("foo")], True, False, None, False, 1, False),
         # multiple active
-        ([URL("foo"), URL("bar")], True, False, None, False, 2),
+        ([URL("foo"), URL("bar")], True, False, None, False, 2, False),
         # one complete
-        ([URL("foo")], False, False, None, False, 0),
+        ([URL("foo")], False, False, None, False, 0, False),
         # timeout
-        ([URL("foo")], True, True, None, False, 0),
+        ([URL("foo")], True, True, None, False, 0, False),
         # idle
-        ([URL("foo")], True, False, 0, False, 0),
+        ([URL("foo")], True, False, 0, False, 0, False),
         # reset idle
-        ([URL("foo")], True, False, 100, True, 1),
+        ([URL("foo")], True, False, 100, True, 1, False),
+        # explorer fails to close browser
+        ([URL("foo")], True, False, None, False, 0, True),
     ],
 )
 def test_site_scout_process_active(
-    mocker, urls, is_healthy, timeout, cpu_usage, idle, active
+    mocker, urls, is_healthy, timeout, cpu_usage, idle, active, explore
 ):
     """test SiteScout._process_active()"""
+    explorer = mocker.patch("site_scout.site_scout.Explorer", autospec=True)
+    explorer.return_value.is_running.return_value = False
     ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
     ffpuppet.return_value.is_healthy.return_value = is_healthy
     ffpuppet.return_value.cpu_usage.return_value = [(None, cpu_usage)]
-    with SiteScout(None, coverage=True) as scout:
+    with SiteScout(None, coverage=True, explore=explore) as scout:
         assert not scout._active
         assert scout._coverage
         for url in urls:
@@ -143,22 +182,23 @@ def test_site_scout_process_active(
         # setup state
         if timeout:
             for visit in scout._active:
-                visit.start_time = 0
+                visit._start_time = 0
         if cpu_usage is not None:
             for visit in scout._active:
-                visit.start_time -= 10
+                visit._start_time -= 10
                 if idle:
-                    visit.idle_timestamp = visit.start_time
+                    visit.idle_timestamp = visit._start_time
         # run and verify
         scout._process_active(30, idle_usage=10, idle_wait=0, min_visit=5)
         assert len(scout._active) == active
         assert active or total_active == len(scout._complete)
         for entry in scout._active:
+            assert entry.is_active()
             assert not entry.puppet.close.call_count
         for entry in scout._complete:
-            assert entry.end_time > 0
+            assert not entry.is_active()
             assert entry.puppet.close.call_count
-            if is_healthy:
+            if is_healthy and not explore:
                 assert entry.puppet.dump_coverage.call_count
             else:
                 assert not entry.puppet.dump_coverage.call_count
@@ -188,6 +228,7 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
     def save_logs(dst_path, logs_only=False):
         dst_path.mkdir(exist_ok=True)
 
+    explorer = mocker.patch("site_scout.site_scout.Explorer", autospec=True)
     ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
     ffpuppet.return_value.is_healthy.return_value = False
     ffpuppet.return_value.reason = reason
@@ -196,7 +237,7 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
     prefs.touch()
     report_dst = tmp_path / "reports"
     report_dst.mkdir()
-    with SiteScout(None, prefs_js=prefs) as scout:
+    with SiteScout(None, prefs_js=prefs, explore=True) as scout:
         assert not scout._active
         for url in urls:
             scout._launch(url)
@@ -206,19 +247,20 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
         assert len(scout._complete) == len(urls)
         assert scout._process_complete(report_dst) == reports
     assert sum(1 for _ in report_dst.iterdir()) == reports
+    assert explorer.return_value.close.call_count == len(urls)
 
 
 @mark.parametrize(
-    "urls, reason, jobs, reports, use_fm, status, result_limit, runtime_limit",
+    "urls, reason, jobs, reports, use_fm, status, explore, result_limit, runtime_limit",
     [
         # no urls to process
-        ([], None, 1, 0, False, True, 0, 0),
+        ([], None, 1, 0, False, True, False, 0, 0),
         # interesting result
-        ([URL("foo")], Reason.ALERT, 1, 1, False, False, 0, 0),
+        ([URL("foo")], Reason.ALERT, 1, 1, False, False, False, 0, 0),
         # job > work
-        ([URL("foo")], Reason.ALERT, 2, 1, False, False, 0, 0),
+        ([URL("foo")], Reason.ALERT, 2, 1, False, False, False, 0, 0),
         # multiple interesting results
-        ([URL("foo"), URL("bar")], Reason.ALERT, 1, 2, False, False, 0, 0),
+        ([URL("foo"), URL("bar")], Reason.ALERT, 1, 2, False, False, False, 0, 0),
         # work > jobs
         (
             [URL("1"), URL("2"), URL("3"), URL("4")],
@@ -227,23 +269,26 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
             4,
             False,
             False,
+            False,
             0,
             0,
         ),
         # uninteresting result
-        ([URL("foo")], Reason.CLOSED, 1, 0, False, False, 0, 0),
+        ([URL("foo")], Reason.CLOSED, 1, 0, False, False, False, 0, 0),
         # domain rate limit
-        ([URL("foo"), URL("foo")], Reason.CLOSED, 1, 0, False, False, 0, 0),
+        ([URL("foo"), URL("foo")], Reason.CLOSED, 1, 0, False, False, False, 0, 0),
         # timeout
-        ([URL("foo")], None, 1, 0, False, False, 0, 0),
+        ([URL("foo")], None, 1, 0, False, False, False, 0, 0),
         # report via FuzzManager
-        ([URL("foo")], Reason.ALERT, 1, 1, True, False, 0, 0),
+        ([URL("foo")], Reason.ALERT, 1, 1, True, False, False, 0, 0),
         # report status
-        ([URL("foo")], Reason.ALERT, 1, 1, False, True, 0, 0),
+        ([URL("foo")], Reason.ALERT, 1, 1, False, True, False, 0, 0),
         # hit result limit
-        ([URL("foo"), URL("bar")], Reason.ALERT, 1, 1, False, False, 1, 0),
+        ([URL("foo"), URL("bar")], Reason.ALERT, 1, 1, False, False, False, 1, 0),
         # hit runtime limit
-        ([URL("foo"), URL("bar")], None, 1, 0, False, False, 0, 1),
+        ([URL("foo"), URL("bar")], None, 1, 0, False, False, False, 0, 1),
+        # explore
+        ([URL("foo"), URL("bar")], None, 1, 0, False, False, True, 0, 0),
     ],
 )
 def test_site_scout_run(
@@ -255,6 +300,7 @@ def test_site_scout_run(
     reports,
     use_fm,
     status,
+    explore,
     result_limit,
     runtime_limit,
 ):  # pylint: disable=too-many-locals
@@ -264,6 +310,7 @@ def test_site_scout_run(
     def save_logs(dst_path, logs_only=False):
         dst_path.mkdir(exist_ok=True)
 
+    mocker.patch("site_scout.site_scout.Explorer", autospec=True)
     mocker.patch("site_scout.site_scout.sleep", autospec=True)
     mocker.patch("site_scout.site_scout.perf_counter", side_effect=count())
     ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
@@ -278,7 +325,7 @@ def test_site_scout_run(
     report_dst = tmp_path / "reports"
     report_dst.mkdir()
     status_file = tmp_path / "status.txt" if status else None
-    with SiteScout(None, fuzzmanager=use_fm) as scout:
+    with SiteScout(None, explore=explore, fuzzmanager=use_fm) as scout:
         assert not scout._active
         scout._urls = urls
         scout.run(
@@ -289,6 +336,12 @@ def test_site_scout_run(
             result_limit=result_limit,
             runtime_limit=runtime_limit,
         )
+        assert len(scout._active) + len(scout._complete) == len(urls)
+        for visit in chain(scout._active, scout._complete):
+            if explore:
+                assert visit.explorer is not None
+            else:
+                assert visit.explorer is None
     assert sum(1 for _ in report_dst.iterdir()) == (0 if use_fm else reports)
     assert reporter.return_value.submit.call_count == (reports if use_fm else 0)
 
@@ -442,7 +495,7 @@ def test_site_scout_skip_remaining(mocker):
         scout._skip_remaining()
         assert not scout._active
         assert not scout._urls
-        assert active.puppet.clean_up.call_count == 1
+        assert active.cleanup.call_count == 1
 
 
 @mark.parametrize(

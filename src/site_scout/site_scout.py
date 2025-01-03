@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from hashlib import sha1
+from itertools import chain
 from logging import getLogger
 from pathlib import Path
 from random import shuffle
@@ -18,6 +19,7 @@ from urllib.parse import quote, urlsplit
 
 from ffpuppet import BrowserTimeoutError, Debugger, FFPuppet, LaunchError, Reason
 
+from .explorer import Explorer
 from .reporter import FuzzManagerReporter
 
 LOG = getLogger(__name__)
@@ -100,7 +102,7 @@ class URL:
     ALLOWED_SCHEMES = frozenset(("http", "https"))
     VALID_DOMAIN = re_compile(r"[a-zA-Z0-9_.-]")
 
-    __slots__ = ("domain", "scheme", "subdomain", "path", "_uid")
+    __slots__ = ("_uid", "domain", "path", "scheme", "subdomain")
 
     def __init__(
         self,
@@ -194,21 +196,84 @@ class URL:
         # this does NOT need to be cryptographically secure
         # it needs to be filesystem safe and *somewhat* unique
         if not self._uid:
-            self._uid = sha1(str(self).encode(errors="replace")).hexdigest()
+            self._uid = sha1(
+                str(self).encode(errors="replace"), usedforsecurity=False
+            ).hexdigest()
         return self._uid
 
 
 class Visit:
     """Visit contains details about the site and browser."""
 
-    __slots__ = ("end_time", "idle_timestamp", "puppet", "url", "start_time")
+    __slots__ = (
+        "_end_time",
+        "_start_time",
+        "explorer",
+        "idle_timestamp",
+        "puppet",
+        "url",
+    )
 
-    def __init__(self, puppet: FFPuppet, url: URL, start_time: float) -> None:
-        self.end_time: float | None = None
+    def __init__(self, puppet: FFPuppet, url: URL, explorer: Explorer | None) -> None:
+        self._end_time: float | None = None
+        self._start_time = perf_counter()
+        self.explorer = explorer
         self.idle_timestamp: float | None = None
         self.puppet = puppet
         self.url = url
-        self.start_time = start_time
+
+    def cleanup(self) -> None:
+        """Close dependents and cleanup.
+
+        Args:
+            None
+
+        Returns:
+            None.
+        """
+        self.close()
+        self.puppet.clean_up()
+
+    def close(self) -> None:
+        """Close browser and explorer if needed.
+
+        Args:
+            None
+
+        Returns:
+            None.
+        """
+        if self._end_time is None:
+            self._end_time = perf_counter()
+            # close browser before closing explorer
+            self.puppet.close()
+            if self.explorer is not None:
+                LOG.debug("%s explorer: %s", self.url.uid[:6], self.explorer.state())
+                self.explorer.close()
+
+    def duration(self) -> float:
+        """Total runtime of the visit.
+
+        Args:
+            None
+
+        Returns:
+            Visit duration.
+        """
+        if self._end_time is not None:
+            return self._end_time - self._start_time
+        return perf_counter() - self._start_time
+
+    def is_active(self) -> bool:
+        """Check if visit is in progress.
+
+        Args:
+            None
+
+        Returns:
+            True if visit is in progress otherwise False.
+        """
+        return self._end_time is None
 
 
 # pylint: disable=too-many-instance-attributes
@@ -223,6 +288,7 @@ class SiteScout:
         "_coverage",
         "_debugger",
         "_display",
+        "_explore",
         "_extension",
         "_fuzzmanager",
         "_launch_failure_limit",
@@ -248,6 +314,7 @@ class SiteScout:
         memory_limit: int = 0,
         extension: list[Path] | None = None,
         cert_files: list[Path] | None = None,
+        explore: bool = False,
         fuzzmanager: bool = False,
         coverage: bool = False,
     ) -> None:
@@ -261,6 +328,7 @@ class SiteScout:
         self._coverage = coverage
         self._debugger = debugger
         self._display = display
+        self._explore = explore
         self._extension = extension
         self._launch_failure_limit = launch_failure_limit
         # consecutive launch failures
@@ -291,11 +359,9 @@ class SiteScout:
             None
         """
         LOG.debug("closing %d active visit(s)...", len(self._active))
-        for visit in self._active:
-            visit.puppet.clean_up()
+        for visit in chain(self._active, self._complete):
+            visit.cleanup()
         self._active.clear()
-        for visit in self._complete:
-            visit.puppet.clean_up()
         self._complete.clear()
 
     def _launch(self, url: URL, log_path: Path | None = None) -> bool:
@@ -320,9 +386,10 @@ class SiteScout:
             ffp.launch(
                 self._binary,
                 env_mod=env_mod,
-                location=str(url),
+                location=None if self._explore else str(url),
                 launch_timeout=self._launch_timeout,
                 log_limit=self._log_limit,
+                marionette=0 if self._explore else None,
                 memory_limit=self._memory_limit,
                 prefs_js=self._prefs,
                 extension=self._extension,
@@ -347,7 +414,12 @@ class SiteScout:
                 ffp.clean_up()
 
         if self._launch_failures == 0:
-            self._active.append(Visit(ffp, url, perf_counter()))
+            explorer: Explorer | None = None
+            if self._explore:
+                assert ffp.marionette is not None
+                explorer = Explorer(self._binary, ffp.marionette, str(url))
+            self._active.append(Visit(ffp, url, explorer=explorer))
+
         return self._launch_failures == 0
 
     def load_dict(self, data: UrlDB) -> None:
@@ -413,6 +485,7 @@ class SiteScout:
         if formatted.uid not in {x.uid for x in self._urls}:
             self._urls.append(formatted)
 
+    # pylint: disable=too-many-branches
     def _process_active(
         self,
         time_limit: float,
@@ -440,34 +513,37 @@ class SiteScout:
         complete: list[int] = []
         for index, visit in enumerate(self._active):
             # check if work is complete
-            visit_runtime = perf_counter() - visit.start_time
+            visit_runtime = visit.duration()
             if not visit.puppet.is_healthy():
-                visit.end_time = perf_counter()
-                visit.puppet.close()
+                visit.close()
                 complete.append(index)
             elif visit_runtime >= time_limit:
-                LOG.debug("visit timeout (%s)", visit.url.uid[:8])
+                LOG.debug("visit timeout (%s)", visit.url.uid[:6])
                 if self._coverage:
                     visit.puppet.dump_coverage()
-                visit.end_time = perf_counter()
-                visit.puppet.close()
+                visit.close()
+                complete.append(index)
+            # check if explorer is complete but browser is running
+            elif visit.explorer and not visit.explorer.is_running():
+                LOG.debug("visit explorer not running (%s)", visit.url.uid[:6])
+                visit.puppet.wait(10)
+                visit.close()
                 complete.append(index)
             # check all browser processes are below idle limit
             elif idle_usage and visit_runtime >= min_visit:
                 if all(x[1] < idle_usage for x in visit.puppet.cpu_usage()):
                     now = perf_counter()
                     if visit.idle_timestamp is None:
-                        LOG.debug("set idle (%s)", visit.url.uid[:8])
+                        LOG.debug("set idle (%s)", visit.url.uid[:6])
                         visit.idle_timestamp = now
                     if now - visit.idle_timestamp >= idle_wait:
-                        LOG.debug("visit idle (%s)", visit.url.uid[:8])
+                        LOG.debug("visit idle (%s)", visit.url.uid[:6])
                         if self._coverage:
                             visit.puppet.dump_coverage()
-                        visit.end_time = perf_counter()
-                        visit.puppet.close()
+                        visit.close()
                         complete.append(index)
                 elif visit.idle_timestamp is not None:
-                    LOG.debug("reset idle (%s)", visit.url.uid[:8])
+                    LOG.debug("reset idle (%s)", visit.url.uid[:6])
                     visit.idle_timestamp = None
 
         if complete:
@@ -489,11 +565,11 @@ class SiteScout:
         while self._complete:
             LOG.debug("%d pending visit(s) to check", len(self._complete))
             visit = self._complete.pop()
-            assert visit.end_time is not None
+            assert not visit.is_active()
             if visit.puppet.reason in (Reason.ALERT, Reason.WORKER):
-                dst = log_path / strftime(f"%Y%m%d-%H%M%S-result-{visit.url.uid[:8]}")
+                dst = log_path / strftime(f"%Y%m%d-%H%M%S-result-{visit.url.uid[:6]}")
                 visit.puppet.save_logs(dst)
-                duration = visit.end_time - visit.start_time
+                duration = visit.duration()
                 if self._prefs:
                     (dst / "prefs.js").write_text(self._prefs.read_text())
                 (dst / "duration.txt").write_text(f"{duration:0.1f}")
@@ -511,7 +587,7 @@ class SiteScout:
                     rmtree(dst)
                 else:
                     LOG.info("Saved as '%s'", dst)
-            visit.puppet.clean_up()
+            visit.cleanup()
         return results
 
     def schedule_urls(
@@ -556,7 +632,7 @@ class SiteScout:
         self._urls.clear()
         LOG.debug("skipping active visits: %d", len(self._active))
         for visit in self._active:
-            visit.puppet.clean_up()
+            visit.cleanup()
         self._active.clear()
 
     # pylint: disable=too-many-locals,too-many-statements
@@ -630,15 +706,17 @@ class SiteScout:
                     total_visits += 1
                     LOG.info("[%02d/%02d] %r", total_visits, total_urls, short_url)
                     LOG.debug(
-                        "launched browser visiting [%s] %s",
-                        next_url.uid[:8],
+                        "launched, explore: %r, timeout: %ds, %s - %s",
+                        self._explore,
+                        time_limit,
+                        next_url.uid[:6],
                         short_url,
                     )
                     last_visit[next_url.domain] = perf_counter()
                     assert self._active
 
-            # check for complete processes
-            self._process_active(time_limit)
+            # check for complete processes (disable idle checks when explore is set)
+            self._process_active(time_limit, idle_usage=0 if self._explore else 10)
             total_results += self._process_complete(log_path=log_path)
 
             # check result and runtime limits
