@@ -6,17 +6,17 @@ from platform import system
 
 from pytest import mark, raises
 
-from .args import parse_args
+from .args import TIME_LIMIT_DEBUG, TIME_LIMIT_DEFAULT, TIME_LIMIT_EXPLORE, parse_args
 
 
-def test_args_01(tmp_path):
+def test_parse_args_basic(tmp_path):
     """test parse_args()"""
     dummy_file = tmp_path / "dummy_file"
     dummy_file.touch()
     assert parse_args([str(dummy_file), "-i", str(dummy_file)])
 
 
-def test_args_02(capsys, tmp_path):
+def test_parse_args_checks(capsys, tmp_path):
     """test parse_args() checks"""
     dummy_file = tmp_path / "dummy_file"
     dummy_file.touch()
@@ -54,7 +54,7 @@ def test_args_02(capsys, tmp_path):
     assert "--time-limit must be > 0" in capsys.readouterr()[-1]
 
 
-def test_args_03(mocker, capsys, tmp_path):
+def test_parse_args_debugger(mocker, capsys, tmp_path):
     """test parse_args() rr/pernosco checks"""
     mocker.patch("site_scout.args.system", autospec=True, return_value="Linux")
     fake_which = mocker.patch("site_scout.args.which", autospec=True)
@@ -78,7 +78,7 @@ def test_args_03(mocker, capsys, tmp_path):
 
 
 @mark.skipif(system() != "Linux", reason="Only supported on Linux")
-def test_args_04(capsys, mocker, tmp_path):
+def test_parse_args_coverage(capsys, mocker, tmp_path):
     """test parse_args() - coverage"""
     dummy_file = tmp_path / "dummy_file"
     dummy_file.touch()
@@ -107,3 +107,24 @@ def test_args_04(capsys, mocker, tmp_path):
     assert (
         "error: Parallel jobs not supported with --coverage" in capsys.readouterr()[-1]
     )
+
+
+@mark.parametrize(
+    "extra_args, expected_time",
+    [
+        ([], TIME_LIMIT_DEFAULT),
+        (["--explore"], TIME_LIMIT_EXPLORE),
+        (["--pernosco"], TIME_LIMIT_DEBUG),
+        (["--time-limit", "111"], 111),
+    ],
+)
+def test_args_time_limit(mocker, tmp_path, extra_args, expected_time):
+    """test parse_args() set time limit"""
+    mocker.patch("site_scout.args.Path.read_bytes", autospec=True, return_value=b"0")
+    mocker.patch("site_scout.args.system", autospec=True, return_value="Linux")
+    mocker.patch("site_scout.args.which", autospec=True)
+
+    dummy_file = tmp_path / "dummy_file"
+    dummy_file.touch()
+    args = parse_args([str(dummy_file), "-i", str(dummy_file), *extra_args])
+    assert args.time_limit == expected_time

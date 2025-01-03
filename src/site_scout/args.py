@@ -20,7 +20,8 @@ except PackageNotFoundError:  # pragma: no cover
     __version__ = "unknown"
 
 TIME_LIMIT_DEBUG = 300
-TIME_LIMIT_DEFAULT = 120
+TIME_LIMIT_DEFAULT = 90
+TIME_LIMIT_EXPLORE = 180
 
 
 def is_headless() -> bool:
@@ -64,6 +65,11 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
         choices=display_choices,
         default="xvfb" if is_headless() else None,
         help="Display mode.",
+    )
+    parser.add_argument(
+        "--explore",
+        action="store_true",
+        help="Use PageExplorer to interact with content.",
     )
     parser.add_argument(
         "--fuzzmanager", action="store_true", help="Report results to FuzzManager."
@@ -180,10 +186,12 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
     args = parser.parse_args(argv)
 
     if args.time_limit is None:
-        if args.debugger == Debugger.NONE:
-            args.time_limit = TIME_LIMIT_DEFAULT
-        else:
+        if args.debugger != Debugger.NONE:
             args.time_limit = TIME_LIMIT_DEBUG
+        elif args.explore:
+            args.time_limit = TIME_LIMIT_EXPLORE
+        else:
+            args.time_limit = TIME_LIMIT_DEFAULT
     if args.time_limit < 1:
         parser.error("--time-limit must be > 0 (recommended minimum: 30)")
 

@@ -132,6 +132,7 @@ def main(argv: list[str] | None = None) -> int:
             cert_files=None,
             fuzzmanager=args.fuzzmanager,
             coverage=args.coverage,
+            explore=args.explore,
         ) as scout:
             LOG.info("Loading URLs...")
             for data in load_input(args.input):
