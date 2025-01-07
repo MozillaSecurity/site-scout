@@ -3,6 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import timedelta
 from hashlib import sha1
 from itertools import chain
@@ -48,6 +49,21 @@ def trim(in_str: str, max_len: int) -> str:
     return f"{in_str[:max_len - 3]}..." if len(in_str) > max_len else in_str
 
 
+# pylint: disable=too-many-instance-attributes
+@dataclass(eq=False)
+class VisitSummary:
+    """Store data from completed Visits for analysis."""
+
+    duration: float
+    url: URL
+    get_duration: float | None = None
+    explore_duration: float | None = None
+    explore_state: str | None = None
+    force_closed: bool = False
+    has_result: bool = False
+    not_found: bool = False
+
+
 class Status:
     """Track and report status to a file."""
 
@@ -68,6 +84,8 @@ class Status:
         completed: int,
         target: int,
         results: int,
+        not_found: int,
+        avg_duration: int,
         force: bool = False,
     ) -> None:
         """Write status report to the filesystem.
@@ -78,6 +96,7 @@ class Status:
             completed: URLs opened.
             target: Total URLs to be opened.
             results: Number of results found.
+            not_found: Number of 'server not found' errors.
             force: Ignore rate limit and report.
 
         Returns:
@@ -91,6 +110,10 @@ class Status:
             lfp.write(f" Active/Limit : {active}/{jobs}\n")
             lfp.write(f"Current/Total : {completed}/{target} ({comp_pct:0.1f}%)\n")
             lfp.write(f"      Results : {results}\n")
+            if not_found > 0:
+                lfp.write(f"    Not Found : {not_found}\n")
+            if avg_duration > 0:
+                lfp.write(f" Avg Duration : {avg_duration}s\n")
             lfp.write(f"      Runtime : {timedelta(seconds=int(now - self._start))}\n")
             lfp.write(f"    Timestamp : {strftime('%Y/%m/%d %X %z', gmtime())}\n")
         self._next = now + self._rate_limit
@@ -298,6 +321,7 @@ class SiteScout:
         "_memory_limit",
         "_prefs",
         "_profile",
+        "_summaries",
         "_urls",
     )
 
@@ -321,6 +345,7 @@ class SiteScout:
         assert launch_failure_limit > 0
         self._active: list[Visit] = []
         self._complete: list[Visit] = []
+        self._summaries: list[VisitSummary] = []
         self._urls: list[URL] = []
         # browser related
         self._binary = binary
@@ -526,7 +551,9 @@ class SiteScout:
             # check if explorer is complete but browser is running
             elif visit.explorer and not visit.explorer.is_running():
                 LOG.debug("visit explorer not running (%s)", visit.url.uid[:6])
-                visit.puppet.wait(10)
+                if not visit.explorer.not_found():
+                    # pause in case browser is closing
+                    visit.puppet.wait(10)
                 visit.close()
                 complete.append(index)
             # check all browser processes are below idle limit
@@ -553,7 +580,7 @@ class SiteScout:
             LOG.debug("%d active, %d complete", len(self._active), len(self._complete))
 
     def _process_complete(self, log_path: Path) -> int:
-        """Report results and remove completed visits.
+        """Report results, record summaries and remove completed visits.
 
         Args:
             log_path: Directory to save results in.
@@ -566,10 +593,13 @@ class SiteScout:
             LOG.debug("%d pending visit(s) to check", len(self._complete))
             visit = self._complete.pop()
             assert not visit.is_active()
+            duration = visit.duration()
+            summary = VisitSummary(duration, visit.url)
+
             if visit.puppet.reason in (Reason.ALERT, Reason.WORKER):
+                summary.has_result = True
                 dst = log_path / strftime(f"%Y%m%d-%H%M%S-result-{visit.url.uid[:6]}")
                 visit.puppet.save_logs(dst)
-                duration = visit.duration()
                 if self._prefs:
                     (dst / "prefs.js").write_text(self._prefs.read_text())
                 (dst / "duration.txt").write_text(f"{duration:0.1f}")
@@ -581,12 +611,26 @@ class SiteScout:
                         "duration": f"{duration:0.1f}",
                         "url": str(visit.url),
                     }
+                    if visit.explorer is not None:
+                        metadata["explore_state"] = visit.explorer.state()
                     fm_id, short_sig = self._fuzzmanager.submit(dst, metadata)
                     LOG.info("FuzzManager (%d): %s", fm_id, trim(short_sig, 60))
                     # remove local data when reporting to FM
                     rmtree(dst)
                 else:
                     LOG.info("Saved as '%s'", dst)
+            else:
+                summary.force_closed = visit.puppet.reason != Reason.EXITED
+
+            if visit.explorer is not None:
+                if visit.explorer.not_found():
+                    LOG.info("Server Not Found: '%s'", visit.url)
+                summary.get_duration = visit.explorer.get_duration()
+                summary.explore_duration = visit.explorer.explore_duration()
+                summary.explore_state = visit.explorer.state()
+                summary.not_found = visit.explorer.not_found()
+
+            self._summaries.append(summary)
             visit.cleanup()
         return results
 
@@ -679,16 +723,17 @@ class SiteScout:
         status = Status(status_report) if status_report else None
         total_results = 0
         total_urls = len(self._urls)
-        total_visits = 0
         while self._urls or self._active:
             # perform status report
             if status:
                 status.report(
                     len(self._active),
                     instance_limit,
-                    total_visits,
+                    len(self._summaries),
                     total_urls,
                     total_results,
+                    sum(1 for x in self._summaries if x.not_found),
+                    0,
                 )
 
             # select url to visit and launch browser
@@ -703,8 +748,12 @@ class SiteScout:
                 # launch browser and visit url
                 elif self._launch(next_url, log_path=log_path):
                     short_url = trim(str(next_url), 80)
-                    total_visits += 1
-                    LOG.info("[%02d/%02d] %r", total_visits, total_urls, short_url)
+                    LOG.info(
+                        "[%02d/%02d] %r",
+                        len(self._active) + len(self._summaries),
+                        total_urls,
+                        short_url,
+                    )
                     LOG.debug(
                         "launched, explore: %r, timeout: %ds, %s - %s",
                         self._explore,
@@ -740,12 +789,20 @@ class SiteScout:
             status.report(
                 len(self._active),
                 instance_limit,
-                total_visits,
+                len(self._summaries),
                 total_urls,
                 total_results,
+                sum(1 for x in self._summaries if x.not_found),
+                (
+                    int(sum(x.duration for x in self._summaries) / len(self._summaries))
+                    if self._summaries
+                    else 0
+                ),
                 force=True,
             )
-        LOG.info("URL visits %d, results reported %d", total_visits, total_results)
+        LOG.info(
+            "Visits complete: %d, results: %d", len(self._summaries), total_results
+        )
 
 
 # pylint: disable=too-many-return-statements

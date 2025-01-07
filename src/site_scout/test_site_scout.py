@@ -170,6 +170,7 @@ def test_site_scout_process_active(
     """test SiteScout._process_active()"""
     explorer = mocker.patch("site_scout.site_scout.Explorer", autospec=True)
     explorer.return_value.is_running.return_value = False
+    explorer.return_value.not_found.return_value = False
     ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
     ffpuppet.return_value.is_healthy.return_value = is_healthy
     ffpuppet.return_value.cpu_usage.return_value = [(None, cpu_usage)]
@@ -245,9 +246,59 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
         scout._process_active(30)
         assert not scout._active
         assert len(scout._complete) == len(urls)
+        assert not scout._summaries
         assert scout._process_complete(report_dst) == reports
+        assert len(scout._summaries) == len(urls)
     assert sum(1 for _ in report_dst.iterdir()) == reports
     assert explorer.return_value.close.call_count == len(urls)
+
+
+@mark.parametrize(
+    "reason, explore",
+    [
+        (Reason.ALERT, True),
+        (Reason.EXITED, True),
+        (Reason.EXITED, False),
+    ],
+)
+def test_site_scout_process_complete_summaries(mocker, tmp_path, reason, explore):
+    """test SiteScout._process_complete() summaries"""
+
+    # pylint: disable=unused-argument
+    def save_logs(dst_path, logs_only=False):
+        dst_path.mkdir(exist_ok=True)
+
+    explorer = mocker.patch("site_scout.site_scout.Explorer", autospec=True)
+    explorer.return_value.get_duration.return_value = 1.0
+    explorer.return_value.explore_duration.return_value = 2.0
+    explorer.return_value.state.return_value = "STATE"
+    ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
+    ffpuppet.return_value.is_healthy.return_value = False
+    ffpuppet.return_value.reason = reason
+    ffpuppet.return_value.save_logs.side_effect = save_logs
+
+    with SiteScout(None, explore=explore) as scout:
+        assert not scout._active
+        scout._launch(URL("foo"))
+        assert len(scout._active) == 1
+        scout._process_active(30)
+        assert not scout._active
+        assert len(scout._complete) == 1
+        assert not scout._summaries
+        scout._process_complete(tmp_path)
+        assert len(scout._summaries) == 1
+        assert scout._summaries[0].duration > 0
+        assert scout._summaries[0].url.domain == "foo"
+        assert not scout._summaries[0].force_closed
+        assert scout._summaries[0].has_result == (reason == Reason.ALERT)
+        if explore:
+            assert scout._summaries[0].explore_state == "STATE"
+            assert scout._summaries[0].get_duration == 1.0
+            assert scout._summaries[0].explore_duration == 2.0
+        else:
+            assert scout._summaries[0].explore_state is None
+            assert scout._summaries[0].get_duration is None
+            assert scout._summaries[0].explore_duration is None
 
 
 @mark.parametrize(
@@ -281,6 +332,8 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
         ([URL("foo")], None, 1, 0, False, False, False, 0, 0),
         # report via FuzzManager
         ([URL("foo")], Reason.ALERT, 1, 1, True, False, False, 0, 0),
+        # report via FuzzManager (explore)
+        ([URL("foo")], Reason.ALERT, 1, 1, True, False, True, 0, 0),
         # report status
         ([URL("foo")], Reason.ALERT, 1, 1, False, True, False, 0, 0),
         # hit result limit
@@ -413,20 +466,29 @@ def test_site_scout_load_collision():
 
 
 @mark.parametrize(
-    "active, jobs, completed, target, results, force",
+    "active, jobs, completed, target, results, not_found, avg_dur, force",
     [
         # nothing running
-        (0, 1, 0, 0, 0, False),
+        (0, 1, 0, 0, 0, 0, 0, False),
         # running with single site to visit
-        (1, 1, 0, 1, 0, False),
+        (1, 1, 0, 1, 0, 0, 0, False),
         # running with single site to visit, forced report
-        (1, 1, 0, 1, 0, True),
+        (1, 1, 0, 1, 0, 0, 0, True),
         # typical scenario
-        (2, 3, 4, 10, 1, False),
+        (2, 3, 4, 10, 1, 1, 33, False),
     ],
 )
 def test_site_scout_status(
-    mocker, tmp_path, active, jobs, completed, target, results, force
+    mocker,
+    tmp_path,
+    active,
+    jobs,
+    completed,
+    target,
+    results,
+    not_found,
+    avg_dur,
+    force,
 ):
     """test Status()"""
     mocker.patch("site_scout.site_scout.perf_counter", side_effect=count(start=1))
@@ -434,15 +496,28 @@ def test_site_scout_status(
     status = Status(dst, rate_limit=2)
     assert status
     assert status._next == 0
-    status.report(active, jobs, completed, target, results, force=force)
+    status.report(
+        active, jobs, completed, target, results, not_found, avg_dur, force=force
+    )
     assert dst.is_file()
     assert status._next > 0
     next_report = status._next
-    status.report(active, jobs, completed, target, results, force=force)
+    status.report(
+        active, jobs, completed, target, results, not_found, avg_dur, force=force
+    )
     if not force:
         assert status._next == next_report
     else:
         assert status._next > next_report
+    output = dst.read_text()
+    if not_found:
+        assert "Not Found :" in output
+    else:
+        assert "Not Found :" not in output
+    if avg_dur:
+        assert "Avg Duration :" in output
+    else:
+        assert "Avg Duration :" not in output
 
 
 @mark.parametrize(

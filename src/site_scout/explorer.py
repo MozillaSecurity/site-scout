@@ -9,7 +9,7 @@ from threading import Event, Lock, Thread
 from time import perf_counter
 from typing import TYPE_CHECKING
 
-from page_explorer import PageExplorer
+from page_explorer import ExplorerError, PageExplorer
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 getLogger("selenium").setLevel(WARNING)
 getLogger("urllib3").setLevel(ERROR)
 
+LOG = getLogger(__name__)
+
 
 @unique
 class State(Enum):
@@ -25,6 +27,7 @@ class State(Enum):
 
     PENDING = auto()
     CONNECTING = auto()
+    NOT_FOUND = auto()
     LOADING = auto()
     EXPLORING = auto()
     CLOSING = auto()
@@ -53,7 +56,7 @@ class Explorer:
         self._can_skip = Event()
         self._status = ExplorerStatus()
         self._thread = Thread(
-            target=self.run,
+            target=self._run,
             args=(binary, port, url, self._status, self._can_skip),
         )
         self._thread.start()
@@ -77,6 +80,30 @@ class Explorer:
         # this should NEVER timeout, if it does there is a bug
         self._thread.join(timeout=60)
 
+    def explore_duration(self) -> float | None:
+        """Amount of time in seconds spent exploring content.
+
+        Args:
+            None
+
+        Returns:
+            Time in seconds if available otherwise None.
+        """
+        with self._status.lock:
+            return self._status.explore_duration
+
+    def get_duration(self) -> float | None:
+        """Amount of time in seconds spent loading content.
+
+        Args:
+            None
+
+        Returns:
+            Time in seconds if available otherwise None.
+        """
+        with self._status.lock:
+            return self._status.get_duration
+
     def is_running(self) -> bool:
         """Check if PageExplorer thread is running.
 
@@ -87,6 +114,18 @@ class Explorer:
             True if the thread is running otherwise False.
         """
         return self._thread.is_alive()
+
+    def not_found(self) -> bool:
+        """Check if server did not respond (server not found).
+
+        Args:
+            None
+
+        Returns:
+            True if the server did not respond otherwise False.
+        """
+        with self._status.lock:
+            return self._status.state == State.NOT_FOUND
 
     def state(self) -> str:
         """Current state of the explorer.
@@ -101,7 +140,7 @@ class Explorer:
             return self._status.state.name
 
     @staticmethod
-    def run(
+    def _run(
         binary: Path,
         port: int,
         url: str,
@@ -127,25 +166,32 @@ class Explorer:
 
         with status.lock:
             status.state = State.CONNECTING
-        with PageExplorer(binary=binary, port=port) as explorer:
-            with status.lock:
-                status.state = State.LOADING
-            start_time = perf_counter()
-            if not explorer.get(url):
-                # failed to navigate to web site
-                return
-            duration = perf_counter() - start_time
-            with status.lock:
-                status.get_duration = duration
-                status.state = State.EXPLORING
-            start_time = perf_counter()
-            if not explorer.explore(wait_cb=custom_wait):
-                # failed to execute all explore instructions
-                return
-            duration = perf_counter() - start_time
-            with status.lock:
-                status.explore_duration = duration
-                status.state = State.CLOSING
-            explorer.close_browser()
-            with status.lock:
-                status.state = State.CLOSED
+
+        try:
+            with PageExplorer(binary=binary, port=port) as explorer:
+                with status.lock:
+                    status.state = State.LOADING
+                start_time = perf_counter()
+                if not explorer.get(url):
+                    # failed to navigate to web site
+                    if explorer.is_connected():
+                        with status.lock:
+                            status.state = State.NOT_FOUND
+                    return
+                duration = perf_counter() - start_time
+                with status.lock:
+                    status.get_duration = duration
+                    status.state = State.EXPLORING
+                start_time = perf_counter()
+                if not explorer.explore(wait_cb=custom_wait):
+                    # failed to execute all explore instructions
+                    return
+                duration = perf_counter() - start_time
+                with status.lock:
+                    status.explore_duration = duration
+                    status.state = State.CLOSING
+                explorer.close_browser()
+                with status.lock:
+                    status.state = State.CLOSED
+        except ExplorerError:
+            LOG.debug("ExplorerError detected, aborting...")
