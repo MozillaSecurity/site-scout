@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from argparse import ArgumentParser, Namespace
+from bisect import insort
 from logging import DEBUG, INFO, getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -121,7 +122,7 @@ class UrlCollection:
             if parsed.subdomain not in self._db[parsed.domain]:
                 self._db[parsed.domain][parsed.subdomain] = []
             if parsed.path not in self._db[parsed.domain][parsed.subdomain]:
-                self._db[parsed.domain][parsed.subdomain].append(parsed.path)
+                insort(self._db[parsed.domain][parsed.subdomain], parsed.path)
                 LOG.debug("added: %s", parsed)
                 return parsed
         return None
@@ -194,6 +195,19 @@ class UrlCollection:
         with dst.open("w") as out_fp:
             dump(self._db, out_fp, Dumper=SafeDumper, default_style="'")
 
+    def sort_paths(self) -> None:
+        """Sort paths.
+
+        Args:
+            None
+
+        Returns:
+            None.
+        """
+        for subdomains in self._db.values():
+            for paths in subdomains.values():
+                paths.sort()
+
 
 def parse_args(argv: list[str] | None = None) -> Namespace:
     """Argument parsing"""
@@ -239,6 +253,7 @@ def main(argv: list[str] | None = None) -> int:
             urls = UrlCollection.load_yml(args.url_db)
             if urls is None:
                 return 1
+            urls.sort_paths()
         else:
             urls = UrlCollection()
 
