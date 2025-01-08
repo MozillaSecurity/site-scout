@@ -86,6 +86,21 @@ def test_url_collection_02(tmp_path):
     assert len(urls) == 7
 
 
+def test_url_collection_sorting():
+    """test UrlCollection() sorting"""
+    urls = UrlCollection({"a.com": {"b": ["/z", "/", "/b"]}})
+    assert urls._db["a.com"]["b"][0] == "/z"
+    assert urls._db["a.com"]["b"][1] == "/"
+    urls.sort_paths()
+    assert urls._db["a.com"]["b"][0] == "/"
+    assert urls._db["a.com"]["b"][1] == "/b"
+    # added paths should be sorted
+    urls.add_url("b.a.com/a")
+    assert urls._db["a.com"]["b"][0] == "/"
+    assert urls._db["a.com"]["b"][1] == "/a"
+    assert urls._db["a.com"]["b"][2] == "/b"
+
+
 def test_parse_args(capsys, tmp_path):
     """test parse_args()"""
     #
