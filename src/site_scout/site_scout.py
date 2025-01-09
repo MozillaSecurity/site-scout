@@ -141,7 +141,7 @@ class URL:
         self._uid: str | None = None
 
     def __str__(self) -> str:
-        if self.subdomain is None:
+        if self.subdomain is None or self.subdomain == NO_SUBDOMAIN:
             return f"{self.scheme}://{self.domain}{self.path}"
         return f"{self.scheme}://{self.subdomain}.{self.domain}{self.path}"
 

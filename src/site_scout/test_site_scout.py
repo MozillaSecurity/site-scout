@@ -8,7 +8,13 @@ from itertools import chain, count, cycle
 from ffpuppet import BrowserTerminatedError, LaunchError, Reason
 from pytest import mark, raises
 
-from .site_scout import URL, SiteScout, Status, Visit, verify_dict
+from .site_scout import NO_SUBDOMAIN, URL, SiteScout, Status, Visit, verify_dict
+
+
+def test_url_str():
+    """test URL.__str__()"""
+    assert str(URL("a.c", subdomain="b", path="/d")) == "http://b.a.c/d"
+    assert str(URL("a.c")) == str(URL("a.c", subdomain=NO_SUBDOMAIN))
 
 
 @mark.parametrize(
@@ -18,6 +24,8 @@ from .site_scout import URL, SiteScout, Status, Visit, verify_dict
         ("a.c", "b", "/d", "http", "http://b.a.c/d"),
         # without a subdomain
         ("a.c", None, "/d", "http", "http://a.c/d"),
+        # with NO_SUBDOMAIN subdomain place holder
+        ("a.c", NO_SUBDOMAIN, "/d", "http", "http://a.c/d"),
         # more complex
         ("a.c:1337", "x.y", "/1/2/3.html", "https", "https://x.y.a.c:1337/1/2/3.html"),
         # normalize case (domain and subdomain only)
@@ -32,7 +40,7 @@ from .site_scout import URL, SiteScout, Status, Visit, verify_dict
         ("a.c", None, "/%C3%B1o", "http", "http://a.c/%C3%B1o"),
     ],
 )
-def test_url_01(domain, subdomain, path, scheme, expected):
+def test_url_create(domain, subdomain, path, scheme, expected):
     """test URL.create()"""
     url = URL.create(domain, subdomain=subdomain, path=path, scheme=scheme)
     assert str(url) == expected
@@ -47,7 +55,9 @@ def test_url_01(domain, subdomain, path, scheme, expected):
         # bad domain
         ("", None, "/", "http"),
         # bad subdomain
-        ("a.c", "*.foo", "/", "http"),
+        ("a.c", f"{NO_SUBDOMAIN}.foo", "/", "http"),
+        # bad subdomain
+        ("a.c", "$.foo", "/", "http"),
         # bad subdomain
         ("a.c", "", "/d", "http"),
         # bad path
@@ -58,7 +68,7 @@ def test_url_01(domain, subdomain, path, scheme, expected):
         ("a.c", None, "/", "foo"),
     ],
 )
-def test_url_02(domain, subdomain, path, scheme):
+def test_url_create_failures(domain, subdomain, path, scheme):
     """test URL.create()"""
     assert URL.create(domain, subdomain=subdomain, path=path, scheme=scheme) is None
 
