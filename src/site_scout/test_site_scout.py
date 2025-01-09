@@ -5,7 +5,7 @@
 # pylint: disable=protected-access
 from itertools import chain, count, cycle
 
-from ffpuppet import BrowserTerminatedError, Reason
+from ffpuppet import BrowserTerminatedError, LaunchError, Reason
 from pytest import mark, raises
 
 from .site_scout import URL, SiteScout, Status, Visit, verify_dict
@@ -397,6 +397,23 @@ def test_site_scout_run(
                 assert visit.explorer is None
     assert sum(1 for _ in report_dst.iterdir()) == (0 if use_fm else reports)
     assert reporter.return_value.submit.call_count == (reports if use_fm else 0)
+
+
+def test_site_scout_run_launch_failed(mocker, tmp_path):
+    """test SiteScout.run() launch failed"""
+    mocker.patch("site_scout.site_scout.sleep", autospec=True)
+    mocker.patch("site_scout.site_scout.perf_counter", side_effect=count())
+    ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
+    # one launch failure and one successful launch
+    ffpuppet.return_value.launch.side_effect = (LaunchError("foo"), None)
+    with SiteScout(None, explore=False) as scout:
+        assert not scout._active
+        scout._urls = [URL("test")]
+        scout.run(tmp_path, 10)
+        # failed launch attempts should re-queue the URL
+        assert scout._summaries
+    assert ffpuppet.return_value.launch.call_count == 2
+    assert ffpuppet.return_value.clean_up.call_count == 2
 
 
 @mark.parametrize(

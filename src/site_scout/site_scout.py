@@ -745,8 +745,9 @@ class SiteScout:
                     and perf_counter() - last_visit[next_url.domain] < domain_rate_limit
                 ):
                     LOG.debug("domain rate limit hit (%s)", next_url.domain)
+                    # move url to the end of the queue
                     self._urls.insert(0, next_url)
-                # launch browser and visit url
+                # attempt to launch browser and visit url
                 elif self._launch(next_url, log_path=log_path):
                     short_url = trim(str(next_url), 80)
                     LOG.info(
@@ -764,6 +765,10 @@ class SiteScout:
                     )
                     last_visit[next_url.domain] = perf_counter()
                     assert self._active
+                # launch failed
+                else:
+                    # re-add url to queue since it was not visited
+                    self._urls.append(next_url)
 
             # check for complete processes (disable idle checks when explore is set)
             self._process_active(time_limit, idle_usage=0 if self._explore else 10)
