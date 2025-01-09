@@ -741,8 +741,9 @@ class SiteScout:
                 next_url = self._urls.pop()
                 # avoid frequent domain visits by rate limiting
                 if (
-                    perf_counter() - last_visit.get(next_url.domain, 0)
-                ) < domain_rate_limit:
+                    next_url.domain in last_visit
+                    and perf_counter() - last_visit[next_url.domain] < domain_rate_limit
+                ):
                     LOG.debug("domain rate limit hit (%s)", next_url.domain)
                     self._urls.insert(0, next_url)
                 # launch browser and visit url
