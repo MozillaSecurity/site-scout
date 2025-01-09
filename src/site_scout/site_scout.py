@@ -786,6 +786,15 @@ class SiteScout:
 
         # final status report
         if status:
+            if self._summaries:
+                # don't include "server not found" results in calculation
+                avg_duration = int(
+                    sum(x.duration for x in self._summaries if not x.not_found)
+                    / len(self._summaries)
+                )
+            else:
+                avg_duration = 0
+
             status.report(
                 len(self._active),
                 instance_limit,
@@ -793,11 +802,7 @@ class SiteScout:
                 total_urls,
                 total_results,
                 sum(1 for x in self._summaries if x.not_found),
-                (
-                    int(sum(x.duration for x in self._summaries) / len(self._summaries))
-                    if self._summaries
-                    else 0
-                ),
+                avg_duration,
                 force=True,
             )
         LOG.info(
