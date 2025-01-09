@@ -42,9 +42,7 @@ def test_explorer(mocker, tmp_path, state, get_return, explore_return):
 
 def test_explorer_failed(mocker, tmp_path):
     """test Explorer() failed to create PageExplorer"""
-    mocker.patch("site_scout.explorer.PageExplorer", autospec=True).side_effect = (
-        ExplorerError("test")
-    )
+    mocker.patch("site_scout.explorer.PageExplorer", side_effect=ExplorerError("test"))
     with Explorer(tmp_path, 0, "http://foo.foo") as explorer:
         assert explorer.state() == State.CONNECTING.name
         assert explorer.get_duration() is None
