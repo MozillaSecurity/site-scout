@@ -448,7 +448,7 @@ class SiteScout:
         return self._launch_failures == 0
 
     def load_dict(self, data: UrlDB) -> None:
-        """Load URLs from a UrlDB (dict) and add to list of URLs to visit.
+        """Load URLs from a UrlDB and add them to the queue.
 
         Args:
             data: Dictionary containing URLs.
@@ -486,7 +486,7 @@ class SiteScout:
         )
 
     def load_str(self, url: str) -> None:
-        """Parse, sanitize and add a URL to list of URLs to visit.
+        """Parse, sanitize and add a URL to the queue.
 
         Args:
             url: Location to visit.
@@ -623,12 +623,13 @@ class SiteScout:
                 summary.force_closed = visit.puppet.reason != Reason.EXITED
 
             if visit.explorer is not None:
-                if visit.explorer.not_found():
-                    LOG.info("Server Not Found: '%s'", visit.url)
                 summary.get_duration = visit.explorer.get_duration()
                 summary.explore_duration = visit.explorer.explore_duration()
                 summary.explore_state = visit.explorer.state()
                 summary.not_found = visit.explorer.not_found()
+                if summary.not_found:
+                    LOG.info("Server Not Found: '%s'", visit.url)
+                    self._skip_not_found(visit.url.domain)
 
             self._summaries.append(summary)
             visit.cleanup()
@@ -637,11 +638,11 @@ class SiteScout:
     def schedule_urls(
         self, url_limit: int = 0, randomize: bool = True, visits: int = 1
     ) -> None:
-        """Prepare URL list. Randomize and limit size as needed.
+        """Prepare URL queue. Randomize and limit size as needed.
 
         Args:
             url_limit: Limit total URLs when value is greater than zero.
-            shuffle_urls: Randomly order URLs visits.
+            shuffle_urls: Randomize order of URLs in the queue.
             visits: Number of times to visit each URL.
 
         Returns:
@@ -663,9 +664,27 @@ class SiteScout:
             # repeat the list for multiple visits
             self._urls = self._urls * visits
 
+    def _skip_not_found(self, domain: str) -> None:
+        """Remove URLs with matching domain from the queue.
+
+        Args:
+            domain: Value used as filter.
+
+        Returns:
+            None.
+        """
+        removed = 0
+        for idx in reversed(range(len(self._urls))):
+            if self._urls[idx].domain == domain:
+                url = self._urls.pop(idx)
+                self._summaries.append(VisitSummary(0, url, not_found=True))
+                removed += 1
+        if removed > 0:
+            LOG.info("Skipping %d related queued URLs", removed)
+
     def _skip_remaining(self) -> None:
-        """Skip remaining visits. This will clear the backlog of remaining Visits and
-        close and cleanup active browser instances.
+        """Skip remaining visits. Clear the URL queue, close and cleanup active browser
+        instances.
 
         Args:
             None
@@ -691,8 +710,8 @@ class SiteScout:
         result_limit: int = 0,
         runtime_limit: int = 0,
     ) -> None:
-        """Iterate over and visit each URL. Each visit is performed in a new browser
-        instance using a clean profile.
+        """Iterate over the queue and visit each URL. Each visit is performed by a
+        new browser instance with a clean profile.
 
         Args:
             log_path: Location to write results.

@@ -561,8 +561,20 @@ def test_site_scout_schedule_urls(size, limit, randomize, visits):
                 assert scout._urls[0] == scout._urls[size]
 
 
+def test_site_scout_skip_not_found():
+    """test SiteScout._skip_not_found()"""
+    with SiteScout(None) as scout:
+        scout._urls = [URL("a"), URL("b"), URL("c")] * 3
+        scout._skip_not_found("a")
+        assert len(scout._urls) == 6
+        assert all(x.domain in ("b", "c") for x in scout._urls)
+        assert len(scout._summaries) == 3
+        assert all(x.url.domain == "a" for x in scout._summaries)
+        assert all(x.not_found for x in scout._summaries)
+
+
 def test_site_scout_skip_remaining(mocker):
-    """test Status._skip_remaining()"""
+    """test SiteScout._skip_remaining()"""
     active = mocker.Mock(spec_set=Visit)
     with SiteScout(None) as scout:
         scout._active = [active]
