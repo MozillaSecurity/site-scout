@@ -157,6 +157,7 @@ class URL:
         """
         return all(ord(x) < 128 for x in data)
 
+    # pylint: disable=too-many-return-statements
     @classmethod
     def create(
         cls,
@@ -181,8 +182,12 @@ class URL:
             LOG.error("Cannot create URL: Invalid scheme %r", scheme)
             return None
 
-        # use idna to encode domain with non ascii characters
-        domain = domain.lower().encode("idna").decode("ascii")
+        try:
+            # use idna to encode domain with non ascii characters
+            domain = domain.lower().encode("idna").decode("ascii")
+        except UnicodeError:
+            LOG.error("Cannot create URL: Invalid domain %r", domain)
+            return None
         if not cls.VALID_DOMAIN.match(domain):
             LOG.error("Cannot create URL: Invalid domain %r", domain)
             return None
@@ -191,7 +196,11 @@ class URL:
             if not subdomain:
                 LOG.error("Cannot create URL: Empty subdomain")
                 return None
-            subdomain = subdomain.lower().encode("idna").decode("ascii")
+            try:
+                subdomain = subdomain.lower().encode("idna").decode("ascii")
+            except UnicodeError:
+                LOG.error("Cannot create URL: Invalid subdomain %r", subdomain)
+                return None
             if not cls.VALID_DOMAIN.match(subdomain):
                 LOG.error("Cannot create URL: Invalid subdomain %r", subdomain)
                 return None
@@ -499,16 +508,18 @@ class SiteScout:
             url = f"http://{url}"
         parsed = urlsplit(url, allow_fragments=False)
         if parsed.scheme not in URL.ALLOWED_SCHEMES:
-            raise ValueError(f"Unsupported scheme in URL: {parsed.scheme}")
+            LOG.error("Unsupported scheme in URL: %r", url)
+            return None
         path = parsed.path if parsed.path else "/"
         if parsed.query:
             path = f"{path}?{parsed.query}"
         # this currently does not separate domain and subdomain
         formatted = URL.create(parsed.netloc, path=path, scheme=parsed.scheme)
-        assert formatted is not None
-        # this might get slow with large lists
-        if formatted.uid not in {x.uid for x in self._urls}:
+        # add unique urls to queue
+        # NOTE: this might get slow with large lists
+        if formatted is not None and formatted.uid not in {x.uid for x in self._urls}:
             self._urls.append(formatted)
+        return None
 
     # pylint: disable=too-many-branches
     def _process_active(
