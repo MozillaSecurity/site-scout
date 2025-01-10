@@ -54,12 +54,16 @@ def test_url_create(domain, subdomain, path, scheme, expected):
         ("*", None, "/", "http"),
         # bad domain
         ("", None, "/", "http"),
+        # bad domain
+        (".a.c", None, "/", "http"),
         # bad subdomain
         ("a.c", f"{NO_SUBDOMAIN}.foo", "/", "http"),
         # bad subdomain
         ("a.c", "$.foo", "/", "http"),
         # bad subdomain
         ("a.c", "", "/d", "http"),
+        # bad subdomain
+        ("a.c", "..a", "/", "http"),
         # bad path
         ("a.c", None, "", "http"),
         # bad path
@@ -466,18 +470,29 @@ def test_site_scout_load_dict(urls, input_data):
         ("HTTPS://A.B.C/eFg1", "https://a.b.c/eFg1"),
     ],
 )
-def test_site_scout_load_str_01(url, result):
-    """test SiteScout.load_str()"""
+def test_site_scout_load_str(url, result):
+    """test SiteScout.load_str() success"""
     with SiteScout(None) as scout:
         scout.load_str(url)
         assert scout._urls
         assert result in str(scout._urls[0])
 
 
-def test_site_scout_load_str_02():
-    """test SiteScout.load_str() invalid scheme"""
-    with SiteScout(None) as scout, raises(ValueError):
-        scout.load_str("ftp://a.b.c")
+@mark.parametrize(
+    "url",
+    [
+        # invalid scheme
+        "ftp://a.b.c",
+        # unparsable domain
+        "http://..a.c/",
+        # unsupported subdomain
+        f"http://{NO_SUBDOMAIN}.a.c/",
+    ],
+)
+def test_site_scout_load_str_failures(url):
+    """test SiteScout.load_str() failures"""
+    with SiteScout(None) as scout:
+        assert scout.load_str(url) is None
 
 
 def test_site_scout_load_collision():
