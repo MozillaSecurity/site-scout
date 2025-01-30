@@ -190,8 +190,10 @@ class Explorer:
                 with status.lock:
                     status.explore_duration = duration
                     status.state = State.CLOSING
-                explorer.close_browser()
-                with status.lock:
-                    status.state = State.CLOSED
+                # only attempt to close the browser if we are still connected
+                if explorer.is_connected():
+                    explorer.close_browser()
+                    with status.lock:
+                        status.state = State.CLOSED
         except ExplorerError:
             LOG.debug("ExplorerError detected, aborting...")
