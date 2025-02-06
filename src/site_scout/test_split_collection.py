@@ -70,7 +70,7 @@ def test_main_01(tmp_path):
     data_file = tmp_path / "test.yml"
     # empty data file
     data_file.write_text("{}")
-    assert main([str(data_file)]) == 1
+    assert main([str(data_file), "-o", str(tmp_path)]) == 1
     # single entry
     data_file.write_text("{'a': {'b': ['/']}}")
-    assert main([str(data_file)]) == 0
+    assert main([str(data_file), "-o", str(tmp_path)]) == 0
