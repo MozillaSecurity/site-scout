@@ -624,6 +624,8 @@ class SiteScout:
                     }
                     if visit.explorer is not None:
                         metadata["explore_state"] = visit.explorer.state()
+                        if visit.explorer.url_loaded:
+                            metadata["url_loaded"] = visit.explorer.url_loaded
                     fm_id, short_sig = self._fuzzmanager.submit(dst, metadata)
                     LOG.info("FuzzManager (%d): %s", fm_id, trim(short_sig, 60))
                     # remove local data when reporting to FM
