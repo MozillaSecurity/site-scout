@@ -39,8 +39,9 @@ class FuzzManagerReporter:
             # attempt to use "<binary>.fuzzmanagerconf"
             self._conf = ProgramConfiguration.fromBinary(binary)
         else:
-            LOG.debug("'%s.fuzzmanagerconf' does not exist", binary)
-            LOG.debug("creating ProgramConfiguration")
+            LOG.debug(
+                "missing '%s.fuzzmanagerconf', creating ProgramConfiguration", binary
+            )
             cpu = machine().lower()
             self._conf = ProgramConfiguration(
                 binary.name,

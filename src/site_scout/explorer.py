@@ -27,8 +27,8 @@ class State(Enum):
 
     PENDING = auto()
     CONNECTING = auto()
-    NOT_FOUND = auto()
     LOADING = auto()
+    NOT_FOUND = auto()
     EXPLORING = auto()
     CLOSING = auto()
     CLOSED = auto()
@@ -37,13 +37,14 @@ class State(Enum):
 class ExplorerStatus:
     """Used to collect status data from PageExplorer."""
 
-    __slots__ = ("explore_duration", "get_duration", "lock", "state")
+    __slots__ = ("explore_duration", "get_duration", "lock", "state", "url_loaded")
 
     def __init__(self) -> None:
         self.explore_duration: float | None = None
         self.get_duration: float | None = None
         self.lock = Lock()
         self.state: State = State.PENDING
+        self.url_loaded: str | None = None
 
 
 class Explorer:
@@ -76,6 +77,7 @@ class Explorer:
         Returns:
             None
         """
+        # disable delay to unblock shutdown
         self._can_skip.set()
         # this should NEVER timeout, if it does there is a bug
         self._thread.join(timeout=60)
@@ -139,6 +141,19 @@ class Explorer:
         with self._status.lock:
             return self._status.state.name
 
+    @property
+    def url_loaded(self) -> str | None:
+        """Gets the URL of the page initially loaded.
+
+        Args:
+            None
+
+        Returns:
+            The URL if it is available otherwise None.
+        """
+        with self._status.lock:
+            return self._status.url_loaded
+
     @staticmethod
     def _run(
         binary: Path,
@@ -178,6 +193,8 @@ class Explorer:
                         with status.lock:
                             status.state = State.NOT_FOUND
                     return
+                with status.lock:
+                    status.url_loaded = explorer.current_url
                 duration = perf_counter() - start_time
                 with status.lock:
                     status.get_duration = duration
