@@ -40,7 +40,10 @@ def init_logging(level: int) -> None:
         None
     """
     if level == DEBUG:
-        log_fmt = "%(asctime)s.%(msecs)03d %(levelname).1s %(name)s | %(message)s"
+        log_fmt = (
+            "%(asctime)s.%(msecs)03d %(levelname).1s %(threadName)s %(name)s | "
+            "%(message)s"
+        )
     else:
         log_fmt = "[%(asctime)s] %(message)s"
     basicConfig(format=log_fmt, datefmt="%H:%M:%S", level=level)

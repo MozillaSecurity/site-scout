@@ -3,7 +3,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 # pylint: disable=protected-access
-from pytest import mark
+from pytest import mark, raises
 
 from .explorer import Explorer, ExplorerError, State
 
@@ -48,7 +48,7 @@ def test_explorer(mocker, tmp_path, state, get_return, explore_return):
             assert explorer.explore_duration() is None
 
 
-def test_explorer_failed(mocker, tmp_path):
+def test_explorer_failed_create_page_explorer(mocker, tmp_path):
     """test Explorer() failed to create PageExplorer"""
     mocker.patch("site_scout.explorer.PageExplorer", side_effect=ExplorerError("test"))
     with Explorer(tmp_path, 0, "http://foo.foo") as explorer:
@@ -57,3 +57,15 @@ def test_explorer_failed(mocker, tmp_path):
         assert explorer.state() == State.CONNECTING.name
         assert explorer.get_duration() is None
         assert explorer.explore_duration() is None
+
+
+def test_explorer_failed_init(mocker, tmp_path):
+    """test Explorer() failed to create PageExplorer"""
+    mocker.patch("site_scout.explorer.PageExplorer", autospec=True)
+    fake_event = mocker.patch("site_scout.explorer.Event", autospec=True)
+    fake_event.return_value.wait.return_value = False
+    with (
+        raises(RuntimeError, match="PageExplorer thread did not unblock"),
+        Explorer(tmp_path, 0, "http://a.foo") as _,
+    ):
+        pass
