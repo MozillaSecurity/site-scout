@@ -48,19 +48,23 @@ class ExplorerStatus:
 
 
 class Explorer:
-    """PageExplorer wrapper to use enable use via SiteScout."""
+    """PageExplorer wrapper to enable use via SiteScout."""
 
     __slots__ = ("_can_skip", "_status", "_thread")
 
     def __init__(self, binary: Path, port: int, url: str) -> None:
-        assert port is not None
+        # init is used to wait for PageExplorer to connect
+        init = Event()
         self._can_skip = Event()
         self._status = ExplorerStatus()
         self._thread = Thread(
             target=self._run,
-            args=(binary, port, url, self._status, self._can_skip),
+            args=(binary, port, url, self._status, self._can_skip, init),
         )
         self._thread.start()
+        # wait for PageExplorer to connect before continuing
+        if not init.wait(timeout=300):
+            raise RuntimeError("PageExplorer thread did not unblock")
 
     def __enter__(self) -> Explorer:
         return self
@@ -161,6 +165,7 @@ class Explorer:
         url: str,
         status: ExplorerStatus,
         can_skip: Event,
+        init: Event,
     ) -> None:
         """Interact with content via PageExplorer.
 
@@ -170,20 +175,22 @@ class Explorer:
             url: Url to visit.
             status: Status tracker.
             can_skip: Used to delay execution.
+            init: Used to delay initialization of Explorer until PageExplorer is ready.
 
         Returns:
             None.
         """
-
-        def custom_wait(seconds: float) -> None:  # pragma: no cover
-            assert seconds >= 0
-            can_skip.wait(seconds)
-
-        with status.lock:
-            status.state = State.CONNECTING
-
         try:
+
+            def custom_wait(seconds: float) -> None:  # pragma: no cover
+                assert seconds >= 0
+                can_skip.wait(seconds)
+
+            with status.lock:
+                status.state = State.CONNECTING
             with PageExplorer(binary=binary, port=port) as explorer:
+                # indicate PageExplorer has connected
+                init.set()
                 with status.lock:
                     status.state = State.LOADING
                 start_time = perf_counter()
@@ -214,3 +221,5 @@ class Explorer:
                         status.state = State.CLOSED
         except ExplorerError:
             LOG.debug("ExplorerError detected, aborting...")
+        finally:
+            init.set()
