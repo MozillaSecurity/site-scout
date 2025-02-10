@@ -408,8 +408,6 @@ class SiteScout:
         Returns:
             True if the browser was launched otherwise False.
         """
-        env_mod: dict[str, str | None] = {"MOZ_CRASHREPORTER_SHUTDOWN": "1"}
-
         ffp = FFPuppet(
             debugger=self._debugger,
             headless=self._display,
@@ -419,7 +417,7 @@ class SiteScout:
         try:
             ffp.launch(
                 self._binary,
-                env_mod=env_mod,
+                env_mod={"MOZ_CRASHREPORTER_SHUTDOWN": "1"},
                 location=None if self._explore else str(url),
                 launch_timeout=self._launch_timeout,
                 log_limit=self._log_limit,
@@ -429,7 +427,6 @@ class SiteScout:
                 extension=self._extension,
                 cert_files=self._cert_files,
             )
-            self._launch_failures = 0
         except LaunchError as exc:
             self._launch_failures += 1
             is_failure = not isinstance(exc, BrowserTimeoutError)
@@ -442,18 +439,18 @@ class SiteScout:
                     ffp.save_logs(dst)
                     LOG.warning("Logs saved '%s'", dst)
                 raise
-
-        finally:
-            if self._launch_failures != 0:
-                ffp.clean_up()
-
-        if self._launch_failures == 0:
+        else:
             explorer: Explorer | None = None
             if self._explore:
                 assert ffp.marionette is not None
+                # this can raise RuntimeError
                 explorer = Explorer(self._binary, ffp.marionette, str(url))
             self._active.append(Visit(ffp, url, explorer=explorer))
-
+            self._launch_failures = 0
+        finally:
+            # cleanup if launch was unsuccessful
+            if self._launch_failures != 0:
+                ffp.clean_up()
         return self._launch_failures == 0
 
     def load_dict(self, data: UrlDB) -> None:
@@ -563,8 +560,8 @@ class SiteScout:
             elif visit.explorer and not visit.explorer.is_running():
                 LOG.debug("visit explorer not running (%s)", visit.url.uid[:6])
                 if not visit.explorer.not_found():
-                    # pause in case browser is closing
-                    visit.puppet.wait(10)
+                    # pause in case browser is closing (debuggers and slow builds)
+                    visit.puppet.wait(30)
                 visit.close()
                 complete.append(index)
             # check all browser processes are below idle limit
@@ -601,7 +598,7 @@ class SiteScout:
         """
         results = 0
         while self._complete:
-            LOG.debug("%d pending visit(s) to check", len(self._complete))
+            LOG.debug("%d complete visit(s) to process", len(self._complete))
             visit = self._complete.pop()
             assert not visit.is_active()
             duration = visit.duration()
