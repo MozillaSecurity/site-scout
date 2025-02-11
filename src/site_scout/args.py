@@ -57,13 +57,13 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
     )
     group.add_argument("-u", "--url", default=[], nargs="+", help="URL(s) to visit.")
 
-    display_choices = ["headless"]
+    display_choices = ["default", "headless"]
     if system() == "Linux":
         display_choices.append("xvfb")
     parser.add_argument(
         "--display",
         choices=display_choices,
-        default="xvfb" if is_headless() else None,
+        default="xvfb" if is_headless() else "default",
         help="Display mode.",
     )
     parser.add_argument(

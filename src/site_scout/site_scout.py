@@ -19,6 +19,7 @@ from typing import Any, NewType
 from urllib.parse import quote, urlsplit
 
 from ffpuppet import BrowserTimeoutError, Debugger, FFPuppet, LaunchError, Reason
+from ffpuppet.display import DisplayMode
 
 from .explorer import Explorer
 from .reporter import FuzzManagerReporter
@@ -319,7 +320,7 @@ class SiteScout:
         "_complete",
         "_coverage",
         "_debugger",
-        "_display",
+        "_display_mode",
         "_explore",
         "_extension",
         "_fuzzmanager",
@@ -340,7 +341,7 @@ class SiteScout:
         profile: Path | None = None,
         prefs_js: Path | None = None,
         debugger: Debugger = Debugger.NONE,
-        display: str | None = None,
+        display_mode: str = "default",
         launch_timeout: int = 180,
         launch_failure_limit: int = 3,
         log_limit: int = 0,
@@ -361,7 +362,7 @@ class SiteScout:
         self._cert_files = cert_files
         self._coverage = coverage
         self._debugger = debugger
-        self._display = display
+        self._display_mode = display_mode
         self._explore = explore
         self._extension = extension
         self._launch_failure_limit = launch_failure_limit
@@ -410,7 +411,7 @@ class SiteScout:
         """
         ffp = FFPuppet(
             debugger=self._debugger,
-            headless=self._display,
+            display_mode=DisplayMode[self._display_mode.upper()],
             use_profile=self._profile,
             working_path=str(TMP_PATH),
         )
@@ -521,9 +522,9 @@ class SiteScout:
     # pylint: disable=too-many-branches
     def _process_active(
         self,
-        time_limit: float,
+        time_limit: int,
         idle_usage: int = 10,
-        idle_wait: float = 10.0,
+        idle_wait: int = 10,
         min_visit: int = 20,
     ) -> None:
         """Check active browser processes and move complete visits from the active

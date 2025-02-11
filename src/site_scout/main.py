@@ -127,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
             profile=args.profile,
             prefs_js=args.prefs,
             debugger=args.debugger,
-            display="default" if args.display == "headless" else args.display,
+            display_mode=args.display,
             launch_timeout=args.launch_timeout,
             log_limit=args.log_limit,
             memory_limit=args.memory_limit,
