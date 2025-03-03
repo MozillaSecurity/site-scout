@@ -37,11 +37,11 @@ class State(Enum):
 class ExplorerStatus:
     """Used to collect status data from PageExplorer."""
 
-    __slots__ = ("explore_duration", "get_duration", "lock", "state", "url_loaded")
+    __slots__ = ("explore_duration", "load_duration", "lock", "state", "url_loaded")
 
     def __init__(self) -> None:
         self.explore_duration: float | None = None
-        self.get_duration: float | None = None
+        self.load_duration: float | None = None
         self.lock = Lock()
         self.state: State = State.PENDING
         self.url_loaded: str | None = None
@@ -98,18 +98,6 @@ class Explorer:
         with self._status.lock:
             return self._status.explore_duration
 
-    def get_duration(self) -> float | None:
-        """Amount of time in seconds spent loading content.
-
-        Args:
-            None
-
-        Returns:
-            Time in seconds if available otherwise None.
-        """
-        with self._status.lock:
-            return self._status.get_duration
-
     def is_running(self) -> bool:
         """Check if PageExplorer thread is running.
 
@@ -120,6 +108,18 @@ class Explorer:
             True if the thread is running otherwise False.
         """
         return self._thread.is_alive()
+
+    def load_duration(self) -> float | None:
+        """Amount of time in seconds spent loading content.
+
+        Args:
+            None
+
+        Returns:
+            Time in seconds if available otherwise None.
+        """
+        with self._status.lock:
+            return self._status.load_duration
 
     def not_found(self) -> bool:
         """Check if server did not respond (server not found).
@@ -193,19 +193,27 @@ class Explorer:
                 init.set()
                 with status.lock:
                     status.state = State.LOADING
+                # attempt to navigate and load page
                 start_time = perf_counter()
                 if not explorer.get(url):
-                    # failed to navigate to web site
-                    if explorer.is_connected():
-                        with status.lock:
-                            status.state = State.NOT_FOUND
+                    LOG.warning("Failed to get: %s", url)
                     return
-                with status.lock:
-                    status.url_loaded = explorer.current_url
+                # verify page load
+                title = explorer.title
+                if title is None:
+                    LOG.warning("Failed to retrieve title: %s", url)
+                    return
+                if title == "Server Not Found":
+                    with status.lock:
+                        status.state = State.NOT_FOUND
+                    return
                 duration = perf_counter() - start_time
                 with status.lock:
-                    status.get_duration = duration
+                    status.load_duration = duration
+                    status.url_loaded = explorer.current_url
+                    LOG.debug("loaded: %r (%r)", title, status.url_loaded)
                     status.state = State.EXPLORING
+                # interact with content
                 start_time = perf_counter()
                 if not explorer.explore(wait_cb=custom_wait):
                     # failed to execute all explore instructions

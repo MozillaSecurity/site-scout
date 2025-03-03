@@ -57,7 +57,7 @@ class VisitSummary:
 
     duration: float
     url: URL
-    get_duration: float | None = None
+    load_duration: float | None = None
     explore_duration: float | None = None
     explore_state: str | None = None
     force_closed: bool = False
@@ -547,7 +547,11 @@ class SiteScout:
                 complete.append(index)
             # check if explorer is complete but browser is running
             elif visit.explorer and not visit.explorer.is_running():
-                LOG.debug("visit explorer not running (%s)", visit.url.uid[:6])
+                LOG.debug(
+                    "explorer not running, state: %s (%s)",
+                    visit.explorer.state,
+                    visit.url.uid[:6],
+                )
                 if not visit.explorer.not_found():
                     # pause in case browser is closing (debuggers and slow builds)
                     visit.puppet.wait(30)
@@ -622,9 +626,9 @@ class SiteScout:
                 summary.force_closed = visit.puppet.reason != Reason.EXITED
 
             if visit.explorer is not None:
-                summary.get_duration = visit.explorer.get_duration()
                 summary.explore_duration = visit.explorer.explore_duration()
                 summary.explore_state = visit.explorer.state()
+                summary.load_duration = visit.explorer.load_duration()
                 summary.not_found = visit.explorer.not_found()
                 if summary.not_found:
                     LOG.info("Server Not Found: '%s'", visit.url)
