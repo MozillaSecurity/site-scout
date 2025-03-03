@@ -25,7 +25,7 @@ from .args import parse_args
 from .site_scout import SiteScout, UrlDB, verify_dict
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Generator, Iterable
 
 LOG = getLogger(__name__)
 
@@ -67,7 +67,7 @@ def generate_prefs(dst: Path | None = None, variant: str = "a11y") -> Path:
     return prefs
 
 
-def load_input(src: list[Path], allow_empty: bool = False) -> Iterator[UrlDB]:
+def load_input(src: Iterable[Path], allow_empty: bool = False) -> Generator[UrlDB]:
     """Load data from filesystem.
 
     Arguments:
@@ -92,8 +92,8 @@ def load_input(src: list[Path], allow_empty: bool = False) -> Iterator[UrlDB]:
         yield data
 
 
-def scan_input(src: list[Path]) -> Iterator[Path]:
-    """Scan list of inputs which can include files or directories.
+def scan_input(src: Iterable[Path]) -> Generator[Path]:
+    """Scan provided locations for input files.
 
     Arguments:
         src: Paths the evaluate.
