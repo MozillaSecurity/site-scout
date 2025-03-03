@@ -146,18 +146,6 @@ class URL:
             return f"{self.scheme}://{self.domain}{self.path}"
         return f"{self.scheme}://{self.subdomain}.{self.domain}{self.path}"
 
-    @staticmethod
-    def is_ascii(data: str) -> bool:
-        """Check if all characters in a string are ASCII.
-
-        Args:
-            data: String to check.
-
-        Returns:
-            True if string only contains ASCII characters otherwise False.
-        """
-        return all(ord(x) < 128 for x in data)
-
     # pylint: disable=too-many-return-statements
     @classmethod
     def create(
@@ -211,7 +199,7 @@ class URL:
             return None
 
         # percent encode non ascii characters in path if needed
-        if not cls.is_ascii(path):
+        if not path.isascii():
             path = quote(path, safe=punctuation)
 
         return cls(domain, subdomain=subdomain, path=path, scheme=scheme)
