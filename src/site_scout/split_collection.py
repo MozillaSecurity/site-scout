@@ -79,7 +79,7 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
         "-s",
         "--size",
         default=TARGET_SIZE,
-        type=Path,
+        type=int,
         help="Target output size for parts in bytes. (default: %(default)s).",
     )
     level_map = {"INFO": INFO, "DEBUG": DEBUG}
