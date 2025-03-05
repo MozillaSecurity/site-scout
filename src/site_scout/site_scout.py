@@ -547,11 +547,7 @@ class SiteScout:
                 complete.append(index)
             # check if explorer is complete but browser is running
             elif visit.explorer and not visit.explorer.is_running():
-                LOG.debug(
-                    "explorer not running, state: %s (%s)",
-                    visit.explorer.state,
-                    visit.url.uid[:6],
-                )
+                LOG.debug("explorer not running (%s)", visit.url.uid[:6])
                 if not visit.explorer.not_found():
                     # pause in case browser is closing (debuggers and slow builds)
                     visit.puppet.wait(30)
@@ -575,10 +571,9 @@ class SiteScout:
                     visit.idle_timestamp = None
 
         if complete:
-            LOG.debug("found %d complete", len(complete))
             for index in sorted(complete, reverse=True):
                 self._complete.append(self._active.pop(index))
-            LOG.debug("%d active, %d complete", len(self._active), len(self._complete))
+            LOG.debug("%d active, %d removed", len(self._active), len(complete))
 
     def _process_complete(self, log_path: Path) -> int:
         """Report results, record summaries and remove completed visits.
