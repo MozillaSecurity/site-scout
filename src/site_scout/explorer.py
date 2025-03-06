@@ -195,17 +195,18 @@ class Explorer:
                     status.state = State.LOADING
                 # attempt to navigate and load page
                 start_time = perf_counter()
-                if not explorer.get(url):
-                    LOG.warning("Failed to get: %s", url)
-                    return
+                get_result = explorer.get(url)
                 # verify page load
                 title = explorer.title
-                if title is None:
-                    LOG.warning("Failed to retrieve title: %s", url)
-                    return
                 if title == "Server Not Found":
                     with status.lock:
                         status.state = State.NOT_FOUND
+                    return
+                if not get_result:
+                    LOG.warning("Failed to get: %s", url)
+                    return
+                if title is None:
+                    LOG.warning("Failed to retrieve title: %s", url)
                     return
                 duration = perf_counter() - start_time
                 with status.lock:
