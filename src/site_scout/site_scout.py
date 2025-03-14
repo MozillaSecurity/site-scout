@@ -539,22 +539,21 @@ class SiteScout:
             if not visit.puppet.is_healthy():
                 visit.close()
                 complete.append(index)
+            # check if explorer is complete
+            elif visit.explorer and not visit.explorer.is_running():
+                LOG.debug("explorer not running (%s)", visit.url.uid[:6])
+                # we assume the browser closed or it crashed
+                visit.close()
+                complete.append(index)
             elif visit_runtime >= time_limit:
                 LOG.debug("visit timeout (%s)", visit.url.uid[:6])
                 if self._coverage:
                     visit.puppet.dump_coverage()
                 visit.close()
                 complete.append(index)
-            # check if explorer is complete but browser is running
-            elif visit.explorer and not visit.explorer.is_running():
-                LOG.debug("explorer not running (%s)", visit.url.uid[:6])
-                if not visit.explorer.not_found():
-                    # pause in case browser is closing (debuggers and slow builds)
-                    visit.puppet.wait(30)
-                visit.close()
-                complete.append(index)
-            # check all browser processes are below idle limit
+            # check for idle browser instance
             elif idle_usage and visit_runtime >= min_visit:
+                # check all browser processes are below idle limit
                 if all(x[1] < idle_usage for x in visit.puppet.cpu_usage()):
                     now = perf_counter()
                     if visit.idle_timestamp is None:
