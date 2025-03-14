@@ -9,21 +9,25 @@ from .explorer import Explorer, ExplorerError, State
 
 
 @mark.parametrize(
-    "state, get_return, explore_return, title_value",
+    "get_return, explore_return, state, title",
     (
         # navigation hung or failed
-        (State.LOADING, False, False, None),
+        (False, False, State.LOADING, None),
         # failed to get page title
-        (State.LOADING, True, False, None),
+        (True, True, State.CLOSED, None),
         # server not found
-        (State.NOT_FOUND, True, False, "Server Not Found"),
+        (False, False, State.NOT_FOUND, "Server Not Found"),
+        # problem loading page
+        (False, False, State.LOAD_FAILURE, "Problem loading page"),
+        # unknown navigate/load failure
+        (False, False, State.LOADING, "error title"),
         # browser crashed
-        (State.EXPLORING, True, False, "title"),
+        (True, False, State.EXPLORING, "title"),
         # successful interaction and browser closed
-        (State.CLOSED, True, True, "title"),
+        (True, True, State.CLOSED, "title"),
     ),
 )
-def test_explorer(mocker, tmp_path, state, get_return, explore_return, title_value):
+def test_explorer(mocker, tmp_path, get_return, explore_return, state, title):
     """test Explorer()"""
     page_explorer = mocker.patch(
         "site_scout.explorer.PageExplorer", autospec=True
@@ -31,7 +35,8 @@ def test_explorer(mocker, tmp_path, state, get_return, explore_return, title_val
     page_explorer.current_url = "http://foo.foo"
     page_explorer.explore.return_value = explore_return
     page_explorer.get.return_value = get_return
-    page_explorer.title = title_value
+    page_explorer.is_connected.return_value = False
+    page_explorer.title = title
     with Explorer(tmp_path, 0, "http://foo.foo") as explorer:
         assert not explorer._can_skip.is_set()
         # allow explore thread to complete
@@ -44,7 +49,7 @@ def test_explorer(mocker, tmp_path, state, get_return, explore_return, title_val
             assert explorer.not_found()
         else:
             assert not explorer.not_found()
-        if title_value == "title":
+        if get_return:
             assert explorer.load_duration() > 0
             assert explorer.url_loaded == "http://foo.foo"
         else:
@@ -62,7 +67,7 @@ def test_explorer_failed_create_page_explorer(mocker, tmp_path):
     with Explorer(tmp_path, 0, "http://foo.foo") as explorer:
         # allow explore thread to complete
         explorer._thread.join(timeout=10)
-        assert explorer.state() == State.CONNECTING.name
+        assert explorer.state() == State.INITIALIZING.name
         assert explorer.load_duration() is None
         assert explorer.explore_duration() is None
 

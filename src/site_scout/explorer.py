@@ -26,9 +26,10 @@ class State(Enum):
     """State of Explorer"""
 
     PENDING = auto()
-    CONNECTING = auto()
+    INITIALIZING = auto()
     LOADING = auto()
     NOT_FOUND = auto()
+    LOAD_FAILURE = auto()
     EXPLORING = auto()
     CLOSING = auto()
     CLOSED = auto()
@@ -187,26 +188,26 @@ class Explorer:
                 can_skip.wait(seconds)
 
             with status.lock:
-                status.state = State.CONNECTING
+                status.state = State.INITIALIZING
             with PageExplorer(binary=binary, port=port) as explorer:
-                # indicate PageExplorer has connected
+                # indicate PageExplorer has been initialized and connected to browser
                 init.set()
+                # attempt to navigate and load page
                 with status.lock:
                     status.state = State.LOADING
-                # attempt to navigate and load page
                 start_time = perf_counter()
                 get_result = explorer.get(url)
-                # verify page load
                 title = explorer.title
-                if title == "Server Not Found":
-                    with status.lock:
-                        status.state = State.NOT_FOUND
-                    return
+                # verify page load
                 if not get_result:
-                    LOG.warning("Failed to get: %s", url)
-                    return
-                if title is None:
-                    LOG.warning("Failed to retrieve title: %s", url)
+                    if title == "Server Not Found":
+                        with status.lock:
+                            status.state = State.NOT_FOUND
+                    elif title == "Problem loading page":
+                        with status.lock:
+                            status.state = State.LOAD_FAILURE
+                    else:
+                        LOG.warning("Failed to get: %s (%r)", url, title)
                     return
                 duration = perf_counter() - start_time
                 with status.lock:
@@ -223,9 +224,9 @@ class Explorer:
                 with status.lock:
                     status.explore_duration = duration
                     status.state = State.CLOSING
-                # only attempt to close the browser if we are still connected
-                if explorer.is_connected():
-                    explorer.close_browser()
+                # attempt to close the browser
+                explorer.close_browser(wait=10)
+                if not explorer.is_connected():
                     with status.lock:
                         status.state = State.CLOSED
         except ExplorerError:
