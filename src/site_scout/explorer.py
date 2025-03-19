@@ -122,19 +122,7 @@ class Explorer:
         with self._status.lock:
             return self._status.load_duration
 
-    def not_found(self) -> bool:
-        """Check if server did not respond (server not found).
-
-        Args:
-            None
-
-        Returns:
-            True if the server did not respond otherwise False.
-        """
-        with self._status.lock:
-            return self._status.state == State.NOT_FOUND
-
-    def state(self) -> str:
+    def state(self) -> State:
         """Current state of the explorer.
 
         Args:
@@ -144,7 +132,7 @@ class Explorer:
             Current state.
         """
         with self._status.lock:
-            return self._status.state.name
+            return self._status.state
 
     @property
     def url_loaded(self) -> str | None:

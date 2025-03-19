@@ -44,11 +44,7 @@ def test_explorer(mocker, tmp_path, get_return, explore_return, state, title):
         explorer.close()
         assert not explorer.is_running()
         assert explorer._can_skip.is_set()
-        assert explorer.state() == state.name
-        if state == State.NOT_FOUND:
-            assert explorer.not_found()
-        else:
-            assert not explorer.not_found()
+        assert explorer.state() == state
         if get_return:
             assert explorer.load_duration() > 0
             assert explorer.url_loaded == "http://foo.foo"
@@ -67,7 +63,7 @@ def test_explorer_failed_create_page_explorer(mocker, tmp_path):
     with Explorer(tmp_path, 0, "http://foo.foo") as explorer:
         # allow explore thread to complete
         explorer._thread.join(timeout=10)
-        assert explorer.state() == State.INITIALIZING.name
+        assert explorer.state() == State.INITIALIZING
         assert explorer.load_duration() is None
         assert explorer.explore_duration() is None
 

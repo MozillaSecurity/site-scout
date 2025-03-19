@@ -8,6 +8,7 @@ from itertools import chain, count, cycle
 from ffpuppet import BrowserTerminatedError, LaunchError, Reason
 from pytest import mark, raises
 
+from .explorer import State
 from .site_scout import NO_SUBDOMAIN, URL, SiteScout, Status, Visit, verify_dict
 
 
@@ -184,7 +185,6 @@ def test_site_scout_process_active(
     """test SiteScout._process_active()"""
     explorer = mocker.patch("site_scout.site_scout.Explorer", autospec=True)
     explorer.return_value.is_running.return_value = False
-    explorer.return_value.not_found.return_value = False
     ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
     ffpuppet.return_value.is_healthy.return_value = is_healthy
     ffpuppet.return_value.cpu_usage.return_value = [(None, cpu_usage)]
@@ -268,14 +268,18 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
 
 
 @mark.parametrize(
-    "reason, explore",
+    "reason, explore, state",
     [
-        (Reason.ALERT, True),
-        (Reason.EXITED, True),
-        (Reason.EXITED, False),
+        (Reason.ALERT, True, State.EXPLORING),
+        (Reason.EXITED, True, State.CLOSED),
+        (Reason.CLOSED, True, State.LOAD_FAILURE),
+        (Reason.CLOSED, True, State.NOT_FOUND),
+        (Reason.EXITED, False, None),
     ],
 )
-def test_site_scout_process_complete_summaries(mocker, tmp_path, reason, explore):
+def test_site_scout_process_complete_summaries(
+    mocker, tmp_path, reason, explore, state
+):
     """test SiteScout._process_complete() summaries"""
 
     # pylint: disable=unused-argument
@@ -285,7 +289,7 @@ def test_site_scout_process_complete_summaries(mocker, tmp_path, reason, explore
     explorer = mocker.patch("site_scout.site_scout.Explorer", autospec=True)
     explorer.return_value.load_duration.return_value = 1.0
     explorer.return_value.explore_duration.return_value = 2.0
-    explorer.return_value.state.return_value = "STATE"
+    explorer.return_value.state.return_value = state
     ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
     ffpuppet.return_value.is_healthy.return_value = False
     ffpuppet.return_value.reason = reason
@@ -303,10 +307,10 @@ def test_site_scout_process_complete_summaries(mocker, tmp_path, reason, explore
         assert len(scout._summaries) == 1
         assert scout._summaries[0].duration > 0
         assert scout._summaries[0].url.domain == "foo"
-        assert not scout._summaries[0].force_closed
+        assert scout._summaries[0].force_closed == (reason == Reason.CLOSED)
         assert scout._summaries[0].has_result == (reason == Reason.ALERT)
         if explore:
-            assert scout._summaries[0].explore_state == "STATE"
+            assert scout._summaries[0].explore_state == state.name
             assert scout._summaries[0].load_duration == 1.0
             assert scout._summaries[0].explore_duration == 2.0
         else:
@@ -508,16 +512,16 @@ def test_site_scout_load_collision():
 
 
 @mark.parametrize(
-    "active, jobs, completed, target, results, not_found, avg_dur, force",
+    "active, jobs, completed, target, results, not_found, load_failure, avg_dur, force",
     [
         # nothing running
-        (0, 1, 0, 0, 0, 0, 0, False),
+        (0, 1, 0, 0, 0, 0, 0, 0, False),
         # running with single site to visit
-        (1, 1, 0, 1, 0, 0, 0, False),
+        (1, 1, 0, 1, 0, 0, 0, 0, False),
         # running with single site to visit, forced report
-        (1, 1, 0, 1, 0, 0, 0, True),
+        (1, 1, 0, 1, 0, 0, 0, 0, True),
         # typical scenario
-        (2, 3, 4, 10, 1, 1, 33, False),
+        (2, 3, 4, 10, 1, 1, 1, 33, False),
     ],
 )
 def test_site_scout_status(
@@ -529,6 +533,7 @@ def test_site_scout_status(
     target,
     results,
     not_found,
+    load_failure,
     avg_dur,
     force,
 ):
@@ -539,13 +544,29 @@ def test_site_scout_status(
     assert status
     assert status._next == 0
     status.report(
-        active, jobs, completed, target, results, not_found, avg_dur, force=force
+        active,
+        jobs,
+        completed,
+        target,
+        results,
+        not_found,
+        load_failure,
+        avg_dur,
+        force=force,
     )
     assert dst.is_file()
     assert status._next > 0
     next_report = status._next
     status.report(
-        active, jobs, completed, target, results, not_found, avg_dur, force=force
+        active,
+        jobs,
+        completed,
+        target,
+        results,
+        not_found,
+        load_failure,
+        avg_dur,
+        force=force,
     )
     if not force:
         assert status._next == next_report
@@ -556,6 +577,10 @@ def test_site_scout_status(
         assert "Not Found :" in output
     else:
         assert "Not Found :" not in output
+    if load_failure:
+        assert "Load Failures :" in output
+    else:
+        assert "Load Failures :" not in output
     if avg_dur:
         assert "Avg Duration :" in output
     else:
