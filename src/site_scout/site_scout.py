@@ -21,7 +21,7 @@ from urllib.parse import quote, urlsplit
 from ffpuppet import BrowserTimeoutError, Debugger, FFPuppet, LaunchError, Reason
 from ffpuppet.display import DisplayMode
 
-from .explorer import Explorer
+from .explorer import Explorer, State
 from .reporter import FuzzManagerReporter
 
 LOG = getLogger(__name__)
@@ -58,11 +58,13 @@ class VisitSummary:
     duration: float
     url: URL
     load_duration: float | None = None
+    load_failure: bool = False
     explore_duration: float | None = None
     explore_state: str | None = None
     force_closed: bool = False
     has_result: bool = False
     not_found: bool = False
+    unknown_failure: bool = False
 
 
 class Status:
@@ -86,6 +88,7 @@ class Status:
         target: int,
         results: int,
         not_found: int,
+        load_failure: int,
         avg_duration: int,
         force: bool = False,
     ) -> None:
@@ -98,6 +101,7 @@ class Status:
             target: Total URLs to be opened.
             results: Number of results found.
             not_found: Number of 'server not found' errors.
+            load_failure: Number of page load failures.
             force: Ignore rate limit and report.
 
         Returns:
@@ -112,7 +116,11 @@ class Status:
             lfp.write(f"Current/Total : {completed}/{target} ({comp_pct:0.1f}%)\n")
             lfp.write(f"      Results : {results}\n")
             if not_found > 0:
-                lfp.write(f"    Not Found : {not_found}\n")
+                nf_pct = not_found / completed
+                lfp.write(f"    Not Found : {not_found} ({nf_pct:0.1f}%)\n")
+            if load_failure > 0:
+                lf_pct = load_failure / completed
+                lfp.write(f"Load Failures : {load_failure} ({lf_pct:0.1f}%)\n")
             if avg_duration > 0:
                 lfp.write(f" Avg Duration : {avg_duration}s\n")
             lfp.write(f"      Runtime : {timedelta(seconds=int(now - self._start))}\n")
@@ -606,7 +614,7 @@ class SiteScout:
                         "url": str(visit.url),
                     }
                     if visit.explorer is not None:
-                        metadata["explore_state"] = visit.explorer.state()
+                        metadata["explore_state"] = visit.explorer.state().name
                         if visit.explorer.url_loaded:
                             metadata["url_loaded"] = visit.explorer.url_loaded
                     fm_id, short_sig = self._fuzzmanager.submit(dst, metadata)
@@ -620,9 +628,15 @@ class SiteScout:
 
             if visit.explorer is not None:
                 summary.explore_duration = visit.explorer.explore_duration()
-                summary.explore_state = visit.explorer.state()
+                summary.explore_state = visit.explorer.state().name
                 summary.load_duration = visit.explorer.load_duration()
-                summary.not_found = visit.explorer.not_found()
+                summary.load_failure = visit.explorer.state() == State.LOAD_FAILURE
+                summary.not_found = visit.explorer.state() == State.NOT_FOUND
+                summary.unknown_failure = (
+                    not summary.has_result and visit.explorer.state() == State.LOADING
+                )
+                if summary.load_failure:
+                    LOG.info("Page load failure: '%s'", visit.url)
                 if summary.not_found:
                     LOG.info("Server Not Found: '%s'", visit.url)
                     self._skip_url(visit.url)
@@ -752,6 +766,7 @@ class SiteScout:
                     total_urls,
                     total_results,
                     sum(1 for x in self._summaries if x.not_found),
+                    sum(1 for x in self._summaries if x.load_failure),
                     0,
                 )
 
@@ -827,6 +842,7 @@ class SiteScout:
                 total_urls,
                 total_results,
                 sum(1 for x in self._summaries if x.not_found),
+                sum(1 for x in self._summaries if x.load_failure),
                 avg_duration,
                 force=True,
             )
