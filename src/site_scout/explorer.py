@@ -233,3 +233,5 @@ class Explorer:
             LOG.debug("ExplorerError detected, aborting...")
         finally:
             init.set()
+            with status.lock:
+                LOG.debug("final state: %s", status.state.name)
