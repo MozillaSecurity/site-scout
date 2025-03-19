@@ -269,7 +269,6 @@ class Visit:
             # close browser before closing explorer
             self.puppet.close()
             if self.explorer is not None:
-                LOG.debug("%s explorer: %s", self.url.uid[:6], self.explorer.state())
                 self.explorer.close()
 
     def duration(self) -> float:
