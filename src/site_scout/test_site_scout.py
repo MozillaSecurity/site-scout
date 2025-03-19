@@ -603,11 +603,11 @@ def test_site_scout_schedule_urls(size, limit, randomize, visits):
                 assert scout._urls[0] == scout._urls[size]
 
 
-def test_site_scout_skip_not_found():
-    """test SiteScout._skip_not_found()"""
+def test_site_scout_skip_url():
+    """test SiteScout._skip_url()"""
     with SiteScout(None) as scout:
         scout._urls = [URL("a"), URL("b"), URL("c")] * 3
-        scout._skip_not_found("a")
+        scout._skip_url(URL("a"))
         assert len(scout._urls) == 6
         assert all(x.domain in ("b", "c") for x in scout._urls)
         assert len(scout._summaries) == 3
