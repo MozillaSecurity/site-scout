@@ -625,7 +625,7 @@ class SiteScout:
                 summary.not_found = visit.explorer.not_found()
                 if summary.not_found:
                     LOG.info("Server Not Found: '%s'", visit.url)
-                    self._skip_not_found(visit.url.domain)
+                    self._skip_url(visit.url)
 
             self._summaries.append(summary)
             visit.cleanup()
@@ -660,24 +660,6 @@ class SiteScout:
             # repeat the list for multiple visits
             self._urls = self._urls * visits
 
-    def _skip_not_found(self, domain: str) -> None:
-        """Remove URLs with matching domain from the queue.
-
-        Args:
-            domain: Value used as filter.
-
-        Returns:
-            None.
-        """
-        removed = 0
-        for idx in reversed(range(len(self._urls))):
-            if self._urls[idx].domain == domain:
-                url = self._urls.pop(idx)
-                self._summaries.append(VisitSummary(0, url, not_found=True))
-                removed += 1
-        if removed > 0:
-            LOG.info("Skipping %d related queued URLs", removed)
-
     def _skip_remaining(self) -> None:
         """Skip remaining visits. Clear the URL queue, close and cleanup active browser
         instances.
@@ -693,6 +675,28 @@ class SiteScout:
         for visit in self._active:
             visit.cleanup()
         self._active.clear()
+
+    def _skip_url(self, url: URL) -> None:
+        """Remove URLs with matching domain and subdomain from the queue.
+
+        Args:
+            url: Used as filter.
+
+        Returns:
+            None.
+        """
+        removed = 0
+        for idx in reversed(range(len(self._urls))):
+            if (
+                self._urls[idx].domain == url.domain
+                and self._urls[idx].subdomain == url.subdomain
+            ):
+                self._summaries.append(
+                    VisitSummary(0, self._urls.pop(idx), not_found=True)
+                )
+                removed += 1
+        if removed > 0:
+            LOG.info("Skipping %d related queued URLs", removed)
 
     # pylint: disable=too-many-locals,too-many-statements
     def run(
