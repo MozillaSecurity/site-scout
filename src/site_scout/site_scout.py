@@ -64,7 +64,7 @@ class VisitSummary:
     force_closed: bool = False
     has_result: bool = False
     not_found: bool = False
-    unknown_failure: bool = False
+    unhandled_error: bool = False
 
 
 class Status:
@@ -632,8 +632,8 @@ class SiteScout:
                 summary.load_duration = visit.explorer.load_duration()
                 summary.load_failure = visit.explorer.state() == State.LOAD_FAILURE
                 summary.not_found = visit.explorer.state() == State.NOT_FOUND
-                summary.unknown_failure = (
-                    not summary.has_result and visit.explorer.state() == State.LOADING
+                summary.unhandled_error = (
+                    visit.explorer.state() == State.UNHANDLED_ERROR
                 )
                 if summary.load_failure:
                     LOG.info("Page load failure: '%s'", visit.url)
