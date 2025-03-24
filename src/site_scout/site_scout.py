@@ -21,7 +21,7 @@ from urllib.parse import quote, urlsplit
 from ffpuppet import BrowserTimeoutError, Debugger, FFPuppet, LaunchError, Reason
 from ffpuppet.display import DisplayMode
 
-from .explorer import Explorer, State
+from .explorer import PAGE_LOAD_FAILURES, Explorer, State
 from .reporter import FuzzManagerReporter
 
 LOG = getLogger(__name__)
@@ -549,7 +549,9 @@ class SiteScout:
             # check if explorer is complete
             elif visit.explorer and not visit.explorer.is_running():
                 LOG.debug("explorer not running (%s)", visit.url.uid[:6])
-                # we assume the browser closed or it crashed
+                # check if browser closed or potentially crashed
+                if visit.explorer.state() not in PAGE_LOAD_FAILURES:
+                    visit.puppet.wait(10)
                 visit.close()
                 complete.append(index)
             elif visit_runtime >= time_limit:

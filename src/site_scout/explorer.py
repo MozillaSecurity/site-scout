@@ -36,6 +36,15 @@ class State(Enum):
     CLOSED = auto()
 
 
+PAGE_LOAD_FAILURES = frozenset(
+    (
+        State.NOT_FOUND,
+        State.LOAD_FAILURE,
+        State.UNHANDLED_ERROR,
+    )
+)
+
+
 class ExplorerStatus:
     """Used to collect status data from PageExplorer."""
 
