@@ -58,13 +58,10 @@ class VisitSummary:
     duration: float
     url: URL
     load_duration: float | None = None
-    load_failure: bool = False
     explore_duration: float | None = None
-    explore_state: str | None = None
+    state: State | None = None
     force_closed: bool = False
     has_result: bool = False
-    not_found: bool = False
-    unhandled_error: bool = False
 
 
 class Status:
@@ -630,18 +627,13 @@ class SiteScout:
 
             if visit.explorer is not None:
                 summary.explore_duration = visit.explorer.explore_duration()
-                summary.explore_state = visit.explorer.state().name
+                summary.state = visit.explorer.state()
                 summary.load_duration = visit.explorer.load_duration()
-                summary.load_failure = visit.explorer.state() == State.LOAD_FAILURE
-                summary.not_found = visit.explorer.state() == State.NOT_FOUND
-                summary.unhandled_error = (
-                    visit.explorer.state() == State.UNHANDLED_ERROR
-                )
-                if summary.load_failure:
+                if summary.state == State.LOAD_FAILURE:
                     LOG.info("Page load failure: '%s'", visit.url)
-                if summary.not_found:
+                elif summary.state == State.NOT_FOUND:
                     LOG.info("Server Not Found: '%s'", visit.url)
-                    self._skip_url(visit.url)
+                    self._skip_url(visit.url, state=State.NOT_FOUND)
 
             self._summaries.append(summary)
             visit.cleanup()
@@ -692,11 +684,12 @@ class SiteScout:
             visit.cleanup()
         self._active.clear()
 
-    def _skip_url(self, url: URL) -> None:
+    def _skip_url(self, url: URL, state: State | None = None) -> None:
         """Remove URLs with matching domain and subdomain from the queue.
 
         Args:
             url: Used as filter.
+            state: Explore state to set on skipped.
 
         Returns:
             None.
@@ -708,7 +701,7 @@ class SiteScout:
                 and self._urls[idx].subdomain == url.subdomain
             ):
                 self._summaries.append(
-                    VisitSummary(0, self._urls.pop(idx), not_found=True)
+                    VisitSummary(0, self._urls.pop(idx), state=state)
                 )
                 removed += 1
         if removed > 0:
@@ -767,8 +760,8 @@ class SiteScout:
                     len(self._summaries),
                     total_urls,
                     total_results,
-                    sum(1 for x in self._summaries if x.not_found),
-                    sum(1 for x in self._summaries if x.load_failure),
+                    sum(1 for x in self._summaries if x.state == State.NOT_FOUND),
+                    sum(1 for x in self._summaries if x.state == State.LOAD_FAILURE),
                     0,
                 )
 
@@ -829,9 +822,13 @@ class SiteScout:
         # final status report
         if status:
             if self._summaries:
-                # don't include "server not found" results in calculation
+                # only include "successful" page loads in calculation
                 avg_duration = int(
-                    sum(x.duration for x in self._summaries if not x.not_found)
+                    sum(
+                        x.duration
+                        for x in self._summaries
+                        if x.state not in PAGE_LOAD_FAILURES
+                    )
                     / len(self._summaries)
                 )
             else:
@@ -843,8 +840,8 @@ class SiteScout:
                 len(self._summaries),
                 total_urls,
                 total_results,
-                sum(1 for x in self._summaries if x.not_found),
-                sum(1 for x in self._summaries if x.load_failure),
+                sum(1 for x in self._summaries if x.state == State.NOT_FOUND),
+                sum(1 for x in self._summaries if x.state == State.LOAD_FAILURE),
                 avg_duration,
                 force=True,
             )

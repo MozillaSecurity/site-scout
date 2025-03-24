@@ -310,11 +310,11 @@ def test_site_scout_process_complete_summaries(
         assert scout._summaries[0].force_closed == (reason == Reason.CLOSED)
         assert scout._summaries[0].has_result == (reason == Reason.ALERT)
         if explore:
-            assert scout._summaries[0].explore_state == state.name
+            assert scout._summaries[0].state == state
             assert scout._summaries[0].load_duration == 1.0
             assert scout._summaries[0].explore_duration == 2.0
         else:
-            assert scout._summaries[0].explore_state is None
+            assert scout._summaries[0].state is None
             assert scout._summaries[0].load_duration is None
             assert scout._summaries[0].explore_duration is None
 
@@ -632,12 +632,12 @@ def test_site_scout_skip_url():
     """test SiteScout._skip_url()"""
     with SiteScout(None) as scout:
         scout._urls = [URL("a"), URL("b"), URL("c")] * 3
-        scout._skip_url(URL("a"))
+        scout._skip_url(URL("a"), state=State.NOT_FOUND)
         assert len(scout._urls) == 6
         assert all(x.domain in ("b", "c") for x in scout._urls)
         assert len(scout._summaries) == 3
         assert all(x.url.domain == "a" for x in scout._summaries)
-        assert all(x.not_found for x in scout._summaries)
+        assert all(x.state == State.NOT_FOUND for x in scout._summaries)
 
 
 def test_site_scout_skip_remaining(mocker):
