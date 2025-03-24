@@ -30,6 +30,7 @@ class State(Enum):
     LOADING = auto()
     NOT_FOUND = auto()
     LOAD_FAILURE = auto()
+    UNHANDLED_ERROR = auto()
     EXPLORING = auto()
     CLOSING = auto()
     CLOSED = auto()
@@ -195,7 +196,10 @@ class Explorer:
                         with status.lock:
                             status.state = State.LOAD_FAILURE
                     else:
+                        with status.lock:
+                            status.state = State.UNHANDLED_ERROR
                         LOG.warning("Failed to get: %s (%r)", url, title)
+                    # the browser is running but page cannot be loaded
                     return
                 duration = perf_counter() - start_time
                 with status.lock:

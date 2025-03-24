@@ -9,10 +9,10 @@ from .explorer import Explorer, ExplorerError, State
 
 
 @mark.parametrize(
-    "get_return, explore_return, state, title",
+    "get_value, explore_return, state, title",
     (
         # navigation hung or failed
-        (False, False, State.LOADING, None),
+        (ExplorerError(), False, State.LOADING, None),
         # failed to get page title
         (True, True, State.CLOSED, None),
         # server not found
@@ -20,21 +20,21 @@ from .explorer import Explorer, ExplorerError, State
         # problem loading page
         (False, False, State.LOAD_FAILURE, "Problem loading page"),
         # unknown navigate/load failure
-        (False, False, State.LOADING, "error title"),
+        (False, False, State.UNHANDLED_ERROR, "error title"),
         # browser crashed
         (True, False, State.EXPLORING, "title"),
         # successful interaction and browser closed
         (True, True, State.CLOSED, "title"),
     ),
 )
-def test_explorer(mocker, tmp_path, get_return, explore_return, state, title):
+def test_explorer(mocker, tmp_path, get_value, explore_return, state, title):
     """test Explorer()"""
     page_explorer = mocker.patch(
         "site_scout.explorer.PageExplorer", autospec=True
     ).return_value.__enter__.return_value
     page_explorer.current_url = "http://foo.foo"
     page_explorer.explore.return_value = explore_return
-    page_explorer.get.return_value = get_return
+    page_explorer.get.side_effect = (get_value,)
     page_explorer.is_connected.return_value = False
     page_explorer.title = title
     with Explorer(tmp_path, 0, "http://foo.foo") as explorer:
@@ -45,7 +45,7 @@ def test_explorer(mocker, tmp_path, get_return, explore_return, state, title):
         assert not explorer.is_running()
         assert explorer._can_skip.is_set()
         assert explorer.state() == state
-        if get_return:
+        if get_value is True:
             assert explorer.load_duration() > 0
             assert explorer.url_loaded == "http://foo.foo"
         else:
