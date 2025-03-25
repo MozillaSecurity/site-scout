@@ -113,10 +113,10 @@ class Status:
             lfp.write(f"Current/Total : {completed}/{target} ({comp_pct:0.1f}%)\n")
             lfp.write(f"      Results : {results}\n")
             if not_found > 0:
-                nf_pct = not_found / completed
+                nf_pct = (not_found / completed) * 100
                 lfp.write(f"    Not Found : {not_found} ({nf_pct:0.1f}%)\n")
             if load_failure > 0:
-                lf_pct = load_failure / completed
+                lf_pct = (load_failure / completed) * 100
                 lfp.write(f"Load Failures : {load_failure} ({lf_pct:0.1f}%)\n")
             if avg_duration > 0:
                 lfp.write(f" Avg Duration : {avg_duration}s\n")
