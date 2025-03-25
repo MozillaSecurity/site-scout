@@ -47,7 +47,7 @@ def trim(in_str: str, max_len: int) -> str:
     Returns:
         Modified string or original string depending on max_len.
     """
-    return f"{in_str[:max_len - 3]}..." if len(in_str) > max_len else in_str
+    return f"{in_str[: max_len - 3]}..." if len(in_str) > max_len else in_str
 
 
 # pylint: disable=too-many-instance-attributes
