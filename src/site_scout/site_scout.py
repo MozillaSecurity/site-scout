@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from hashlib import sha1
 from itertools import chain
+from json import dump
 from logging import getLogger
 from pathlib import Path
 from random import shuffle
@@ -601,21 +602,24 @@ class SiteScout:
                 summary.has_result = True
                 dst = log_path / strftime(f"%Y%m%d-%H%M%S-result-{visit.url.uid[:6]}")
                 visit.puppet.save_logs(dst)
-                if self._prefs:
-                    (dst / "prefs.js").write_text(self._prefs.read_text())
-                (dst / "duration.txt").write_text(f"{duration:0.1f}")
-                (dst / "url.txt").write_text(str(visit.url))
                 results += 1
                 LOG.info("Result found visiting '%s' (%0.1fs)", visit.url, duration)
+                # save prefs file
+                if self._prefs:
+                    (dst / "prefs.js").write_text(self._prefs.read_text())
+                # collect visit metadata
+                metadata = {
+                    "duration": f"{duration:0.1f}",
+                    "url": str(visit.url),
+                }
+                if visit.explorer is not None:
+                    metadata["explore_state"] = visit.explorer.state().name
+                    if visit.explorer.url_loaded:
+                        metadata["url_loaded"] = visit.explorer.url_loaded
+                with (dst / "metadata.json").open("w") as ofp:
+                    dump(metadata, ofp, indent=2, sort_keys=True)
+                # report result
                 if self._fuzzmanager:
-                    metadata = {
-                        "duration": f"{duration:0.1f}",
-                        "url": str(visit.url),
-                    }
-                    if visit.explorer is not None:
-                        metadata["explore_state"] = visit.explorer.state().name
-                        if visit.explorer.url_loaded:
-                            metadata["url_loaded"] = visit.explorer.url_loaded
                     fm_id, short_sig = self._fuzzmanager.submit(dst, metadata)
                     LOG.info("FuzzManager (%d): %s", fm_id, trim(short_sig, 60))
                     # remove local data when reporting to FM
