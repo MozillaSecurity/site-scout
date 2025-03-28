@@ -250,6 +250,8 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
     ffpuppet.return_value.is_healthy.return_value = False
     ffpuppet.return_value.reason = reason
     ffpuppet.return_value.save_logs.side_effect = save_logs
+    getenv = mocker.patch("site_scout.site_scout.getenv", autospec=True)
+    getenv.return_value = "collection-name"
     prefs = tmp_path / "prefs.js"
     prefs.touch()
     report_dst = tmp_path / "reports"
