@@ -9,6 +9,7 @@ from hashlib import sha1
 from itertools import chain
 from json import dump
 from logging import getLogger
+from os import getenv
 from pathlib import Path
 from random import shuffle
 from re import compile as re_compile
@@ -616,6 +617,9 @@ class SiteScout:
                     metadata["explore_state"] = visit.explorer.state().name
                     if visit.explorer.url_loaded:
                         metadata["url_loaded"] = visit.explorer.url_loaded
+                    url_collection = getenv("URL_COLLECTION")
+                    if url_collection:
+                        metadata["url_collection"] = url_collection
                 with (dst / "metadata.json").open("w") as ofp:
                     dump(metadata, ofp, indent=2, sort_keys=True)
                 # report result
