@@ -244,10 +244,14 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
         dst_path.mkdir(exist_ok=True)
 
     explorer = mocker.patch("site_scout.site_scout.Explorer", autospec=True)
+    explorer.return_value.state.return_value = State.CLOSED
+    explorer.return_value.url_loaded = ""
     ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
     ffpuppet.return_value.is_healthy.return_value = False
     ffpuppet.return_value.reason = reason
     ffpuppet.return_value.save_logs.side_effect = save_logs
+    getenv = mocker.patch("site_scout.site_scout.getenv", autospec=True)
+    getenv.return_value = "collection-name"
     prefs = tmp_path / "prefs.js"
     prefs.touch()
     report_dst = tmp_path / "reports"
@@ -290,6 +294,7 @@ def test_site_scout_process_complete_summaries(
     explorer.return_value.load_duration.return_value = 1.0
     explorer.return_value.explore_duration.return_value = 2.0
     explorer.return_value.state.return_value = state
+    explorer.return_value.url_loaded = "foo"
     ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
     ffpuppet.return_value.is_healthy.return_value = False
     ffpuppet.return_value.reason = reason
@@ -381,6 +386,7 @@ def test_site_scout_run(
     def save_logs(dst_path, logs_only=False):
         dst_path.mkdir(exist_ok=True)
 
+    mocker.patch("site_scout.site_scout.dump", autospec=True)
     mocker.patch("site_scout.site_scout.Explorer", autospec=True)
     mocker.patch("site_scout.site_scout.sleep", autospec=True)
     mocker.patch("site_scout.site_scout.perf_counter", side_effect=count())
