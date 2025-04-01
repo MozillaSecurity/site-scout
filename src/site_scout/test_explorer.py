@@ -29,6 +29,7 @@ from .explorer import Explorer, ExplorerError, State
 )
 def test_explorer(mocker, tmp_path, get_value, explore_return, state, title):
     """test Explorer()"""
+    mocker.patch("site_scout.explorer.LOAD_WAIT", 0)
     page_explorer = mocker.patch(
         "site_scout.explorer.PageExplorer", autospec=True
     ).return_value.__enter__.return_value
