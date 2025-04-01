@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 getLogger("selenium").setLevel(WARNING)
 getLogger("urllib3").setLevel(ERROR)
 
+LOAD_WAIT = 10
 LOG = getLogger(__name__)
 
 
@@ -31,6 +32,7 @@ class State(Enum):
     NOT_FOUND = auto()
     LOAD_FAILURE = auto()
     UNHANDLED_ERROR = auto()
+    SKIP_CONTENT = auto()
     EXPLORING = auto()
     CLOSING = auto()
     CLOSED = auto()
@@ -215,6 +217,13 @@ class Explorer:
                     status.load_duration = duration
                     status.url_loaded = explorer.current_url
                     LOG.debug("loaded: %r (%r)", title, status.url_loaded)
+                # wait for more content to load/render
+                can_skip.wait(timeout=LOAD_WAIT)
+                with status.lock:
+                    status.state = State.SKIP_CONTENT
+                # attempt to find and activate "skip to content" link
+                explorer.skip_to_content()
+                with status.lock:
                     status.state = State.EXPLORING
                 # interact with content
                 start_time = perf_counter()
