@@ -707,7 +707,7 @@ class SiteScout:
         if removed > 0:
             LOG.info("Skipping %d related queued URLs", removed)
 
-    # pylint: disable=too-many-locals,too-many-statements
+    # pylint: disable=too-many-locals
     def run(
         self,
         log_path: Path,
