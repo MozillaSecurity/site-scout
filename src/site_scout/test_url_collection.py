@@ -86,6 +86,21 @@ def test_url_collection_02(tmp_path):
     assert len(urls) == 7
 
 
+def test_url_collection_count_entries():
+    """test UrlCollection.count_entries()"""
+    urls = UrlCollection(
+        {
+            "a.com": {"b": ["/z", "/", "/b"], "c": ["/"]},
+            "b.foo": {"a": ["/"]},
+            "c.foo": {"c": ["/"]},
+        }
+    )
+    counts = urls.count_entries()
+    assert counts["a.com"] == 4
+    assert counts["b.foo"] == 1
+    assert counts["c.foo"] == 1
+
+
 def test_url_collection_sorting():
     """test UrlCollection() sorting"""
     urls = UrlCollection({"a.com": {"b": ["/z", "/", "/b"]}})
@@ -132,7 +147,7 @@ def test_main(tmp_path):
     assert not data_file.exists()
 
     # add single url
-    assert main([str(data_file), "-u", "test.com", "-d"]) == 0
+    assert main([str(data_file), "-u", "test.com"]) == 0
     assert data_file.exists()
 
     # remove url (data file now exists)
@@ -157,3 +172,7 @@ def test_main(tmp_path):
     file_size = data_file.stat().st_size
     assert main([str(data_file), "-l", str(txt)]) == 0
     assert data_file.stat().st_size > file_size
+
+    # display list and display domain entry counts
+    assert main([str(data_file), "-d", "--domain-entries", "2"]) == 0
+    assert data_file.exists()

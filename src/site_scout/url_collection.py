@@ -139,8 +139,25 @@ class UrlCollection:
         """
         yield from self._db
 
+    def count_entries(self) -> dict[str, int]:
+        """Count entries for each domain.
+
+        Args:
+            None
+
+        Returns:
+            A mapping of domains and entry counts.
+        """
+        results: dict[str, int] = {}
+        for domain in self._db:
+            count = 0
+            for sub in self._db[domain]:
+                count += len(self._db[domain][sub])
+            results[domain] = count
+        return results
+
     def remove_url(self, url: str) -> bool:
-        """Remove a URL from the list of known URLs.
+        """Remove a URL from the collection.
 
         Args:
             url: URL to remove.
@@ -212,8 +229,14 @@ class UrlCollection:
 def parse_args(argv: list[str] | None = None) -> Namespace:
     """Argument parsing"""
     parser = ArgumentParser(description="Manage URL collections used by Site-scout.")
-    parser.add_argument("url_db", type=Path, help="YML file containing data.")
+    parser.add_argument("url_db", type=Path, help="YML file containing URL data.")
     parser.add_argument("-d", "--display-list", action="store_true")
+    parser.add_argument(
+        "--domain-entries",
+        type=int,
+        default=0,
+        help="Display domains with the most entries (default: %(default)s).",
+    )
     level_map = {"INFO": INFO, "DEBUG": DEBUG}
     parser.add_argument(
         "--log-level",
@@ -292,6 +315,14 @@ def main(argv: list[str] | None = None) -> int:
             LOG.warning("Unparsable entries: %s", f"{len(urls.unparsable):,d}")
             for unparsable in urls.unparsable:
                 LOG.info("- '%s'", unparsable)
+
+        # largest domains
+        if args.domain_entries > 0:
+            LOG.info("Domains with most entries:")
+            for domain, count in sorted(
+                urls.count_entries().items(), key=lambda kv: kv[1], reverse=True
+            )[: args.domain_entries]:
+                LOG.info("- %3d '%s'", count, domain)
 
         # show summary
         try:
