@@ -553,7 +553,7 @@ class SiteScout:
                 visit.explorer.close()
                 # check if browser closed or potentially crashed
                 if visit.explorer.status.state not in PAGE_LOAD_FAILURES:
-                    visit.puppet.wait(10)
+                    visit.puppet.wait(10 if self._debugger == Debugger.NONE else 30)
                 visit.close()
                 complete.append(index)
             elif visit_runtime >= time_limit:
