@@ -58,7 +58,7 @@ class VisitSummary:
     """Store data from completed Visits for analysis."""
 
     duration: float
-    url: URL
+    url: str
     load_duration: float | None = None
     explore_duration: float | None = None
     state: State | None = None
@@ -598,9 +598,9 @@ class SiteScout:
             visit = self._complete.pop()
             assert not visit.is_active()
             duration = visit.duration()
-            summary = VisitSummary(duration, visit.url)
+            summary = VisitSummary(duration, str(visit.url))
 
-            if visit.puppet.reason in (Reason.ALERT, Reason.WORKER):
+            if visit.puppet.reason in {Reason.ALERT, Reason.WORKER}:
                 summary.has_result = True
                 dst = log_path / strftime(f"%Y%m%d-%H%M%S-result-{visit.url.uid[:6]}")
                 visit.puppet.save_logs(dst)
@@ -710,7 +710,7 @@ class SiteScout:
                 and self._urls[idx].subdomain == url.subdomain
             ):
                 self._summaries.append(
-                    VisitSummary(0, self._urls.pop(idx), state=state)
+                    VisitSummary(0, str(self._urls.pop(idx)), state=state)
                 )
                 removed += 1
         if removed > 0:

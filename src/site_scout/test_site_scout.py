@@ -311,7 +311,7 @@ def test_site_scout_process_complete_summaries(
         scout._process_complete(tmp_path)
         assert len(scout._summaries) == 1
         assert scout._summaries[0].duration > 0
-        assert scout._summaries[0].url.domain == "foo"
+        assert scout._summaries[0].url == "http://foo/"
         assert scout._summaries[0].force_closed == (reason == Reason.CLOSED)
         assert scout._summaries[0].has_result == (reason == Reason.ALERT)
         if explore:
@@ -642,7 +642,7 @@ def test_site_scout_skip_url():
         assert len(scout._urls) == 6
         assert all(x.domain in ("b", "c") for x in scout._urls)
         assert len(scout._summaries) == 3
-        assert all(x.url.domain == "a" for x in scout._summaries)
+        assert all(x.url == "http://a/" for x in scout._summaries)
         assert all(x.state == State.NOT_FOUND for x in scout._summaries)
 
 
