@@ -403,6 +403,7 @@ class SiteScout:
         Returns:
             True if the browser was launched otherwise False.
         """
+        success = False
         ffp = FFPuppet(
             debugger=self._debugger,
             display_mode=DisplayMode[self._display_mode.upper()],
@@ -422,6 +423,14 @@ class SiteScout:
                 extension=self._extension,
                 cert_files=self._cert_files,
             )
+            explorer: Explorer | None = None
+            if self._explore:
+                assert ffp.marionette is not None
+                # this can raise RuntimeError
+                explorer = Explorer(self._binary, ffp.marionette, str(url))
+            self._active.append(Visit(ffp, url, explorer=explorer))
+            self._launch_failures = 0
+            success = True
         except LaunchError as exc:
             self._launch_failures += 1
             is_failure = not isinstance(exc, BrowserTimeoutError)
@@ -434,19 +443,11 @@ class SiteScout:
                     ffp.save_logs(dst)
                     LOG.warning("Logs saved '%s'", dst)
                 raise
-        else:
-            explorer: Explorer | None = None
-            if self._explore:
-                assert ffp.marionette is not None
-                # this can raise RuntimeError
-                explorer = Explorer(self._binary, ffp.marionette, str(url))
-            self._active.append(Visit(ffp, url, explorer=explorer))
-            self._launch_failures = 0
         finally:
             # cleanup if launch was unsuccessful
-            if self._launch_failures != 0:
+            if not success:
                 ffp.clean_up()
-        return self._launch_failures == 0
+        return success
 
     def load_dict(self, data: UrlDB) -> None:
         """Load URLs from a UrlDB and add them to the queue.
