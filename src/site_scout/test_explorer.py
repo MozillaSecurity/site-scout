@@ -45,28 +45,29 @@ def test_explorer(mocker, tmp_path, get_value, explore_return, state, title):
         explorer.close()
         assert not explorer.is_running()
         assert explorer._can_skip.is_set()
-        assert explorer.state() == state
+        assert explorer.status.state == state
         if get_value is True:
-            assert explorer.load_duration() > 0
-            assert explorer.url_loaded == "http://foo.foo"
+            assert explorer.status.load_duration > 0
+            assert explorer.status.url_loaded == "http://foo.foo"
         else:
-            assert explorer.load_duration() is None
-            assert explorer.url_loaded is None
+            assert explorer.status.load_duration is None
+            assert explorer.status.url_loaded is None
         if explore_return:
-            assert explorer.explore_duration() > 0
+            assert explorer.status.explore_duration > 0
         else:
-            assert explorer.explore_duration() is None
+            assert explorer.status.explore_duration is None
 
 
 def test_explorer_failed_create_page_explorer(mocker, tmp_path):
     """test Explorer() failed to create PageExplorer"""
     mocker.patch("site_scout.explorer.PageExplorer", side_effect=ExplorerError("test"))
     with Explorer(tmp_path, 0, "http://foo.foo") as explorer:
-        # allow explore thread to complete
-        explorer._thread.join(timeout=10)
-        assert explorer.state() == State.INITIALIZING
-        assert explorer.load_duration() is None
-        assert explorer.explore_duration() is None
+        with raises(RuntimeError, match=r"Explorer\.close\(\) not called"):
+            assert explorer.status is None
+        explorer.close()
+        assert explorer.status.state == State.INITIALIZING
+        assert explorer.status.load_duration is None
+        assert explorer.status.explore_duration is None
 
 
 def test_explorer_failed_init(mocker, tmp_path):

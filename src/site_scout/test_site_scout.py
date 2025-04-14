@@ -244,8 +244,8 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
         dst_path.mkdir(exist_ok=True)
 
     explorer = mocker.patch("site_scout.site_scout.Explorer", autospec=True)
-    explorer.return_value.state.return_value = State.CLOSED
-    explorer.return_value.url_loaded = ""
+    explorer.return_value.status.state = State.CLOSED
+    explorer.return_value.status.url_loaded = ""
     ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
     ffpuppet.return_value.is_healthy.return_value = False
     ffpuppet.return_value.reason = reason
@@ -291,10 +291,10 @@ def test_site_scout_process_complete_summaries(
         dst_path.mkdir(exist_ok=True)
 
     explorer = mocker.patch("site_scout.site_scout.Explorer", autospec=True)
-    explorer.return_value.load_duration.return_value = 1.0
-    explorer.return_value.explore_duration.return_value = 2.0
-    explorer.return_value.state.return_value = state
-    explorer.return_value.url_loaded = "foo"
+    explorer.return_value.status.load_duration = 1.0
+    explorer.return_value.status.explore_duration = 2.0
+    explorer.return_value.status.state = state
+    explorer.return_value.status.url_loaded = "foo"
     ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
     ffpuppet.return_value.is_healthy.return_value = False
     ffpuppet.return_value.reason = reason
@@ -315,6 +315,7 @@ def test_site_scout_process_complete_summaries(
         assert scout._summaries[0].force_closed == (reason == Reason.CLOSED)
         assert scout._summaries[0].has_result == (reason == Reason.ALERT)
         if explore:
+            assert explorer.return_value.close.call_count == 1
             assert scout._summaries[0].state == state
             assert scout._summaries[0].load_duration == 1.0
             assert scout._summaries[0].explore_duration == 2.0

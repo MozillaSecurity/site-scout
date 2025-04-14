@@ -548,8 +548,10 @@ class SiteScout:
             # check if explorer is complete
             elif visit.explorer and not visit.explorer.is_running():
                 LOG.debug("explorer not running (%s)", visit.url.uid[:6])
+                # call explorer.close() so when can check final state
+                visit.explorer.close()
                 # check if browser closed or potentially crashed
-                if visit.explorer.state() not in PAGE_LOAD_FAILURES:
+                if visit.explorer.status.state not in PAGE_LOAD_FAILURES:
                     visit.puppet.wait(10)
                 visit.close()
                 complete.append(index)
@@ -614,9 +616,9 @@ class SiteScout:
                     "url": str(visit.url),
                 }
                 if visit.explorer is not None:
-                    metadata["explore_state"] = visit.explorer.state().name
-                    if visit.explorer.url_loaded:
-                        metadata["url_loaded"] = visit.explorer.url_loaded
+                    metadata["explore_state"] = visit.explorer.status.state.name
+                    if visit.explorer.status.url_loaded:
+                        metadata["url_loaded"] = visit.explorer.status.url_loaded
                     url_collection = getenv("URL_COLLECTION")
                     if url_collection:
                         metadata["url_collection"] = url_collection
@@ -634,9 +636,9 @@ class SiteScout:
                 summary.force_closed = visit.puppet.reason != Reason.EXITED
 
             if visit.explorer is not None:
-                summary.explore_duration = visit.explorer.explore_duration()
-                summary.state = visit.explorer.state()
-                summary.load_duration = visit.explorer.load_duration()
+                summary.explore_duration = visit.explorer.status.explore_duration
+                summary.state = visit.explorer.status.state
+                summary.load_duration = visit.explorer.status.load_duration
                 if summary.state == State.LOAD_FAILURE:
                     LOG.info("Page load failure: '%s'", visit.url)
                 elif summary.state == State.NOT_FOUND:
