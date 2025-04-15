@@ -99,8 +99,18 @@ def test_visit_basic(mocker, explore):
     assert visit.duration() == visit.duration()
     assert puppet.close.call_count == 1
     assert puppet.clean_up.call_count == 0
+    summary = visit.summary()
     if explore:
         assert exp.close.call_count == 1
+        assert summary.explore_duration is not None
+        assert summary.load_duration is not None
+        assert summary.state is not None
+        assert summary.url_loaded is not None
+    else:
+        assert summary.explore_duration is None
+        assert summary.load_duration is None
+        assert summary.state is None
+        assert summary.url_loaded is None
     visit.cleanup()
     assert puppet.close.call_count == 1
     assert puppet.clean_up.call_count == 1
