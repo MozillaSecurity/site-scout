@@ -53,17 +53,18 @@ def trim(in_str: str, max_len: int) -> str:
 
 
 # pylint: disable=too-many-instance-attributes
-@dataclass(eq=False)
+@dataclass(eq=False, frozen=True)
 class VisitSummary:
-    """Store data from completed Visits for analysis."""
+    """Store data from completed Visit for analysis."""
 
     duration: float
     url: str
-    load_duration: float | None = None
+    force_closed: bool
+    has_result: bool
     explore_duration: float | None = None
+    load_duration: float | None = None
     state: State | None = None
-    force_closed: bool = False
-    has_result: bool = False
+    url_loaded: str | None = None
 
 
 class Status:
@@ -290,6 +291,31 @@ class Visit:
         if self._end_time is not None:
             return self._end_time - self._start_time
         return perf_counter() - self._start_time
+
+    def summary(self) -> VisitSummary:
+        """Create VisitSummary from Visit data.
+
+        Args:
+            None.
+
+        Returns:
+            VisitSummary.
+        """
+        assert not self.is_active()
+        has_result = self.puppet.reason in frozenset((Reason.ALERT, Reason.WORKER))
+        force_closed = self.puppet.reason == Reason.CLOSED
+        if self.explorer is not None:
+            return VisitSummary(
+                self.duration(),
+                str(self.url),
+                force_closed,
+                has_result,
+                explore_duration=self.explorer.status.explore_duration,
+                load_duration=self.explorer.status.load_duration,
+                state=self.explorer.status.state,
+                url_loaded=self.explorer.status.url_loaded,
+            )
+        return VisitSummary(self.duration(), str(self.url), force_closed, has_result)
 
     def is_active(self) -> bool:
         """Check if visit is in progress.
@@ -598,31 +624,32 @@ class SiteScout:
         while self._complete:
             LOG.debug("%d complete visit(s) to process", len(self._complete))
             visit = self._complete.pop()
-            assert not visit.is_active()
-            duration = visit.duration()
-            summary = VisitSummary(duration, str(visit.url))
-
-            if visit.puppet.reason in {Reason.ALERT, Reason.WORKER}:
-                summary.has_result = True
+            # collect summary
+            summary = visit.summary()
+            self._summaries.append(summary)
+            # process and report result
+            if summary.has_result:
                 dst = log_path / strftime(f"%Y%m%d-%H%M%S-result-{visit.url.uid[:6]}")
                 visit.puppet.save_logs(dst)
                 results += 1
-                LOG.info("Result found visiting '%s' (%0.1fs)", visit.url, duration)
+                LOG.info(
+                    "Result found visiting '%s' (%0.1fs)", summary.url, summary.duration
+                )
                 # save prefs file
                 if self._prefs:
                     (dst / "prefs.js").write_text(self._prefs.read_text())
                 # collect visit metadata
                 metadata = {
-                    "duration": f"{duration:0.1f}",
-                    "url": str(visit.url),
+                    "duration": f"{summary.duration:0.1f}",
+                    "url": summary.url,
                 }
-                if visit.explorer is not None:
-                    metadata["explore_state"] = visit.explorer.status.state.name
-                    if visit.explorer.status.url_loaded:
-                        metadata["url_loaded"] = visit.explorer.status.url_loaded
-                    url_collection = getenv("URL_COLLECTION")
-                    if url_collection:
-                        metadata["url_collection"] = url_collection
+                if summary.state is not None:
+                    metadata["explore_state"] = summary.state.name
+                if summary.url_loaded is not None:
+                    metadata["url_loaded"] = summary.url_loaded
+                url_collection = getenv("URL_COLLECTION")
+                if url_collection is not None:
+                    metadata["url_collection"] = url_collection
                 with (dst / "metadata.json").open("w") as ofp:
                     dump(metadata, ofp, indent=2, sort_keys=True)
                 # report result
@@ -633,20 +660,12 @@ class SiteScout:
                     rmtree(dst)
                 else:
                     LOG.info("Saved as '%s'", dst)
-            else:
-                summary.force_closed = visit.puppet.reason != Reason.EXITED
-
-            if visit.explorer is not None:
-                summary.explore_duration = visit.explorer.status.explore_duration
-                summary.state = visit.explorer.status.state
-                summary.load_duration = visit.explorer.status.load_duration
-                if summary.state == State.LOAD_FAILURE:
-                    LOG.info("Page load failure: '%s'", visit.url)
-                elif summary.state == State.NOT_FOUND:
-                    LOG.info("Server Not Found: '%s'", visit.url)
-                    self._skip_url(visit.url, state=State.NOT_FOUND)
-
-            self._summaries.append(summary)
+            # handle page load failures
+            if summary.state == State.LOAD_FAILURE:
+                LOG.info("Page load failure: '%s'", summary.url)
+            elif summary.state == State.NOT_FOUND:
+                LOG.info("Server Not Found: '%s'", summary.url)
+                self._skip_url(visit.url, state=State.NOT_FOUND)
             visit.cleanup()
         return results
 
@@ -712,7 +731,7 @@ class SiteScout:
                 and self._urls[idx].subdomain == url.subdomain
             ):
                 self._summaries.append(
-                    VisitSummary(0, str(self._urls.pop(idx)), state=state)
+                    VisitSummary(0, str(self._urls.pop(idx)), False, False, state=state)
                 )
                 removed += 1
         if removed > 0:
