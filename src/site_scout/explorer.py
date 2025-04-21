@@ -176,8 +176,8 @@ class Explorer:
                         LOG.warning("Failed to get: %s (%r)", url, title)
                     # the browser is running but page cannot be loaded
                     return
-                load_duration = perf_counter() - start_time
                 url_loaded = explorer.current_url
+                load_duration = perf_counter() - start_time
                 LOG.debug("loaded: %r (%r)", title, url_loaded)
                 # wait for more content to load/render
                 can_skip.wait(timeout=LOAD_WAIT)
