@@ -60,7 +60,7 @@ class FuzzManagerReporter:
         Returns:
             Lines from the requested log file.
         """
-        assert log_id in ("aux", "stderr", "stdout")
+        assert log_id in {"aux", "stderr", "stdout"}, f"Invalid log id {log_id}"
 
         log_file: Path | None = None
         if log_id == "aux":
