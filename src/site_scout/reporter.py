@@ -108,8 +108,6 @@ class FuzzManagerReporter:
             self._conf,
             auxCrashData=self._read_ffpuppet_log(result, "aux"),
         )
-        if metadata:
-            crash_info.configuration.addMetadata(metadata)
 
         with TemporaryDirectory(prefix="fm-report", dir=self._working_path) as tmp_dir:
             # add result to a zip file
@@ -122,7 +120,7 @@ class FuzzManagerReporter:
 
             # submit results to the FuzzManager server
             new_entry = collector.submit(
-                crash_info, testCase=zip_name, testCaseQuality=5
+                crash_info, testCase=zip_name, testCaseQuality=5, metaData=metadata
             )
 
         return (int(new_entry["id"]), str(crash_info.createShortSignature()))
