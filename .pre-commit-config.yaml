@@ -38,14 +38,6 @@ repos:
         files: ^src/site_scout/resources/prefpicker.yml
         types: [yaml]
         args: ["--schemafile", "https://raw.githubusercontent.com/MozillaSecurity/prefpicker/master/src/prefpicker/templates/schema.json"]
-  - repo: https://github.com/marco-c/taskcluster_yml_validator
-    rev: v0.0.12
-    hooks:
-      - id: taskcluster_yml
-  - repo: https://github.com/MozillaSecurity/orion-ci
-    rev: v0.0.10
-    hooks:
-      - id: orion_ci
   - repo: meta
     hooks:
       - id: check-useless-excludes
