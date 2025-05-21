@@ -1,6 +1,6 @@
 Site Scout
 ==========
-[![Task Status](https://community-tc.services.mozilla.com/api/github/v1/repository/MozillaSecurity/site-scout/main/badge.svg)](https://community-tc.services.mozilla.com/api/github/v1/repository/MozillaSecurity/site-scout/main/latest)
+[![CI](https://github.com/MozillaSecurity/site-scout/actions/workflows/ci.yml/badge.svg)](https://github.com/MozillaSecurity/site-scout/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/MozillaSecurity/site-scout/branch/main/graph/badge.svg)](https://codecov.io/gh/MozillaSecurity/site-scout)
 [![Matrix](https://img.shields.io/badge/chat-%23fuzzing-green?logo=matrix)](https://matrix.to/#/#fuzzing:mozilla.org)
 [![PyPI](https://img.shields.io/pypi/v/site-scout)](https://pypi.org/project/site-scout)
@@ -23,16 +23,16 @@ python3 -m pip install site-scout --upgrade
 Usage
 -----
 
-Visit a collection of URLs:
+Visit one or more URLs (typically used to reproduce an issue):
 ```
-site-scout <firefox-bin> -i <urls>.yml [<urls>.yml ...]
+site-scout <firefox-bin> -u <url> [<url> ...]
 ```
 
 -or-
 
-Visit one or more URLs (typically used to reproduce an issue):
+Visit a collection of URLs:
 ```
-site-scout <firefox-bin> -u <url> [<url> ...]
+site-scout <firefox-bin> -i <urls>.yml [<urls>.yml ...]
 ```
 
 Input YAML Layout
