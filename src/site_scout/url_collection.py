@@ -230,6 +230,11 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
     """Argument parsing"""
     parser = ArgumentParser(description="Manage URL collections used by Site-scout.")
     parser.add_argument("url_db", type=Path, help="YML file containing URL data.")
+    parser.add_argument(
+        "--disable-logging",
+        action="store_true",
+        help="Disable console output before running (default: %(default)s).",
+    )
     parser.add_argument("-d", "--display-list", action="store_true")
     parser.add_argument(
         "--domain-entries",
@@ -267,7 +272,7 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
 def main(argv: list[str] | None = None) -> int:
     """Main function"""
     args = parse_args(argv)
-    init_logging(args.log_level)
+    init_logging(args.log_level, args.disable_logging)
 
     try:
         # load data

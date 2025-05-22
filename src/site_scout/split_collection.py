@@ -103,7 +103,7 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
 def main(argv: list[str] | None = None) -> int:
     """Main function"""
     args = parse_args(argv)
-    init_logging(args.log_level)
+    init_logging(args.log_level, False)
 
     try:
         # load data

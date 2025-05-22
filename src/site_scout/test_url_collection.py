@@ -3,6 +3,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 # pylint: disable=missing-docstring,protected-access
+from logging import NOTSET, disable
+
 from pytest import mark, raises
 
 from .url_collection import UrlCollection, main, parse_args
@@ -176,3 +178,23 @@ def test_main(tmp_path):
     # display list and display domain entry counts
     assert main([str(data_file), "-d", "--domain-entries", "2"]) == 0
     assert data_file.exists()
+
+
+def test_main_disable_logging(caplog, capsys, tmp_path):
+    """test main() disable logging"""
+    data_file = tmp_path / "test.yml"
+    try:
+        assert main([str(data_file), "-u", "test.com", "--disable-logging"]) == 0
+    finally:
+        # always re-enable logging
+        disable(level=NOTSET)
+    assert data_file.exists()
+    # verify we are not sending any unexpected data to the console
+    console = capsys.readouterr()
+    assert not console.err
+    assert not console.out
+    assert "Running with logging disabled..." in caplog.text
+    assert len(caplog.text.splitlines()) == 1
+    assert "test.com" not in caplog.text
+    assert "Added" not in caplog.text
+    assert "Saved" not in caplog.text
