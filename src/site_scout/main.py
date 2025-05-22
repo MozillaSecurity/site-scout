@@ -3,7 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 from __future__ import annotations
 
-from logging import DEBUG, basicConfig, getLogger
+from logging import DEBUG, basicConfig, disable, getLogger
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING
@@ -30,11 +30,12 @@ if TYPE_CHECKING:
 LOG = getLogger(__name__)
 
 
-def init_logging(level: int) -> None:
-    """Initialize logging
+def init_logging(level: int, disable_logging: bool) -> None:
+    """Initialize logging.
 
     Arguments:
-        level: logging verbosity level
+        level: logging verbosity level.
+        disable_logging: Disable log output.
 
     Returns:
         None
@@ -47,6 +48,9 @@ def init_logging(level: int) -> None:
     else:
         log_fmt = "[%(asctime)s] %(message)s"
     basicConfig(format=log_fmt, datefmt="%H:%M:%S", level=level)
+    if disable_logging:
+        LOG.warning("Running with logging disabled...")
+        disable()
 
 
 def generate_prefs(dst: Path | None = None, variant: str = "a11y") -> Path:
@@ -112,7 +116,7 @@ def main(argv: list[str] | None = None) -> int:
     """Main function"""
     args = parse_args(argv)
     assert any(args.input) != any(args.url)
-    init_logging(args.log_level)
+    init_logging(args.log_level, args.disable_logging)
 
     tmp_prefs = False
     try:

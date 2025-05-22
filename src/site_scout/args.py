@@ -57,6 +57,11 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
     )
     group.add_argument("-u", "--url", default=[], nargs="+", help="URL(s) to visit.")
 
+    parser.add_argument(
+        "--disable-logging",
+        action="store_true",
+        help="Disable console output before running (default: %(default)s).",
+    )
     display_choices = ["default", "headless"]
     if system() == "Linux":
         display_choices.append("xvfb")
