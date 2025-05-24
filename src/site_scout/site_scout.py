@@ -48,15 +48,28 @@ def trim(in_str: str, max_len: int) -> str:
 # pylint: disable=too-many-instance-attributes
 @dataclass(eq=False, frozen=True)
 class VisitSummary:
-    """Store data from completed Visit for analysis."""
+    """Store data from completed Visit for analysis.
+
+    Attributes:
+        duration: Length of visit in seconds.
+        identifier: Reference to location visited (URL or other handle).
+        force_closed: Browser was forcibly closed.
+        has_result: Indicates that results were detected.
+        explore_duration: Time in seconds spent interacting with content.
+        load_duration: Time in seconds spent loading content.
+        state: Enum representing visit progress.
+        url_collection: An optional label to track origin of URL.
+        url_loaded: URL actually visited.
+    """
 
     duration: float
-    url: str
+    identifier: str
     force_closed: bool
     has_result: bool
     explore_duration: float | None = None
     load_duration: float | None = None
     state: State | None = None
+    url_collection: str | None = None
     url_loaded: str | None = None
 
 
@@ -185,6 +198,8 @@ class Visit:
     def summary(self) -> VisitSummary:
         """Create VisitSummary from Visit data.
 
+        NOTE: If URL.alias is set no URL data should be passed to the VisitSummary.
+
         Args:
             None.
 
@@ -194,18 +209,26 @@ class Visit:
         assert not self.is_active()
         has_result = self.puppet.reason in frozenset((Reason.ALERT, Reason.WORKER))
         force_closed = self.puppet.reason == Reason.CLOSED
+        url_collection = getenv("URL_COLLECTION")
         if self.explorer is not None:
             return VisitSummary(
                 self.duration(),
-                str(self.url),
+                self.url.alias or str(self.url),
                 force_closed,
                 has_result,
                 explore_duration=self.explorer.status.explore_duration,
                 load_duration=self.explorer.status.load_duration,
                 state=self.explorer.status.state,
-                url_loaded=self.explorer.status.url_loaded,
+                url_collection=url_collection,
+                url_loaded=None if self.url.alias else self.explorer.status.url_loaded,
             )
-        return VisitSummary(self.duration(), str(self.url), force_closed, has_result)
+        return VisitSummary(
+            self.duration(),
+            self.url.alias or str(self.url),
+            force_closed,
+            has_result,
+            url_collection=url_collection,
+        )
 
     def is_active(self) -> bool:
         """Check if visit is in progress.
@@ -239,12 +262,14 @@ class SiteScout:
         "_launch_timeout",
         "_log_limit",
         "_memory_limit",
+        "_omit_urls",
         "_prefs",
         "_profile",
         "_summaries",
         "_urls",
     )
 
+    # pylint: disable=too-many-locals
     def __init__(
         self,
         binary: Path,
@@ -261,6 +286,7 @@ class SiteScout:
         explore: bool = False,
         fuzzmanager: bool = False,
         coverage: bool = False,
+        omit_urls: bool = False,
     ) -> None:
         assert launch_failure_limit > 0
         self._active: list[Visit] = []
@@ -281,6 +307,7 @@ class SiteScout:
         self._launch_timeout = launch_timeout
         self._log_limit = log_limit
         self._memory_limit = memory_limit
+        self._omit_urls = omit_urls
         self._prefs = prefs_js
         self._profile = profile
         # reporter
@@ -392,6 +419,8 @@ class SiteScout:
                     )
                     # avoid duplicates
                     if url.uid not in existing:
+                        if self._omit_urls:
+                            url.alias = "REDACTED"
                         self._urls.append(url)
                         existing.add(url.uid)
                     total_urls += 1
@@ -415,11 +444,14 @@ class SiteScout:
         try:
             formatted = URL.parse(url, default_subdomain=None)
         except URLParseError as exc:
-            LOG.error("Failed to parse URL: %s", exc)
+            # only show full error message when omit_urls is false
+            LOG.error("Failed to parse URL%s", "" if self._omit_urls else f": {exc}")
             return
         # add unique urls to queue
         # NOTE: this might get slow with large lists
         if formatted is not None and formatted.uid not in {x.uid for x in self._urls}:
+            if self._omit_urls:
+                formatted.alias = "REDACTED"
             self._urls.append(formatted)
 
     # pylint: disable=too-many-branches
@@ -505,17 +537,21 @@ class SiteScout:
         results = 0
         while self._complete:
             LOG.debug("%d complete visit(s) to process", len(self._complete))
-            visit = self._complete.pop()
             # collect summary
+            # NOTE: ALL reported data should be derived from summary
+            visit = self._complete.pop()
             summary = visit.summary()
             self._summaries.append(summary)
             # process and report result
             if summary.has_result:
+                # WARNING: START REPORTING/SAVING DATA
                 dst = log_path / strftime(f"%Y%m%d-%H%M%S-result-{visit.url.uid[:6]}")
                 visit.puppet.save_logs(dst)
                 results += 1
                 LOG.info(
-                    "Result found visiting '%s' (%0.1fs)", summary.url, summary.duration
+                    "Result found visiting '%s' (%0.1fs)",
+                    summary.identifier,
+                    summary.duration,
                 )
                 # save prefs file
                 if self._prefs:
@@ -523,15 +559,14 @@ class SiteScout:
                 # collect visit metadata
                 metadata = {
                     "duration": f"{summary.duration:0.1f}",
-                    "url": summary.url,
+                    "identifier": summary.identifier,
                 }
                 if summary.state is not None:
                     metadata["explore_state"] = summary.state.name
                 if summary.url_loaded is not None:
                     metadata["url_loaded"] = summary.url_loaded
-                url_collection = getenv("URL_COLLECTION")
-                if url_collection is not None:
-                    metadata["url_collection"] = url_collection
+                if summary.url_collection is not None:
+                    metadata["url_collection"] = summary.url_collection
                 with (dst / "metadata.json").open("w") as ofp:
                     dump(metadata, ofp, indent=2, sort_keys=True)
                 # report result
@@ -542,11 +577,13 @@ class SiteScout:
                     rmtree(dst)
                 else:
                     LOG.info("Saved as '%s'", dst)
+                # DONE REPORTING/SAVING DATA
+
             # handle page load failures
             if summary.state == State.LOAD_FAILURE:
-                LOG.info("Page load failure: '%s'", summary.url)
+                LOG.info("Page load failure: '%s'", summary.identifier)
             elif summary.state == State.NOT_FOUND:
-                LOG.info("Server Not Found: '%s'", summary.url)
+                LOG.info("Server Not Found: '%s'", summary.identifier)
                 self._skip_url(visit.url, state=State.NOT_FOUND)
             visit.cleanup()
         return results
@@ -612,8 +649,9 @@ class SiteScout:
                 self._urls[idx].domain == url.domain
                 and self._urls[idx].subdomain == url.subdomain
             ):
+                url = self._urls.pop(idx)
                 self._summaries.append(
-                    VisitSummary(0, str(self._urls.pop(idx)), False, False, state=state)
+                    VisitSummary(0, url.alias or str(url), False, False, state=state)
                 )
                 removed += 1
         if removed > 0:
@@ -685,12 +723,14 @@ class SiteScout:
                     next_url.domain in last_visit
                     and perf_counter() - last_visit[next_url.domain] < domain_rate_limit
                 ):
-                    LOG.debug("domain rate limit hit (%s)", next_url.domain)
+                    LOG.debug(
+                        "domain rate limit hit (%s)", next_url.alias or next_url.domain
+                    )
                     # move url to the end of the queue
                     self._urls.insert(0, next_url)
                 # attempt to launch browser and visit url
                 elif self._launch(next_url, log_path=log_path):
-                    short_url = trim(str(next_url), 80)
+                    short_url = trim(next_url.alias or str(next_url), 80)
                     LOG.info(
                         "[%02d/%02d] '%s'",
                         len(self._active) + len(self._summaries),

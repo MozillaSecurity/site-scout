@@ -140,6 +140,7 @@ def main(argv: list[str] | None = None) -> int:
             fuzzmanager=args.fuzzmanager,
             coverage=args.coverage,
             explore=args.explore,
+            omit_urls=args.omit_urls,
         ) as scout:
             LOG.info("Loading URLs...")
             for data in load_input(args.input):

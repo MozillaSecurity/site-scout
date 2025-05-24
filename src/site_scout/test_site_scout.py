@@ -13,12 +13,16 @@ from .site_scout import SiteScout, Status, Visit, verify_dict
 from .url import URL
 
 
-@mark.parametrize("explore", [False, True])
-def test_visit_basic(mocker, explore):
+@mark.parametrize("explore", (True, False))
+@mark.parametrize("alias", (None, "foo"))
+def test_visit_basic(mocker, explore, alias):
     """test Visit"""
     exp = mocker.patch("site_scout.site_scout.Explorer", autospec=True).return_value
     puppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True).return_value
-    visit = Visit(puppet, URL("foo"), explorer=exp if explore else None)
+    url = URL("foo")
+    if alias is not None:
+        url.alias = alias
+    visit = Visit(puppet, url, explorer=exp if explore else None)
     assert visit.is_active()
     assert visit.duration() != visit.duration()
     assert visit.puppet == puppet
@@ -40,12 +44,19 @@ def test_visit_basic(mocker, explore):
         assert summary.explore_duration is not None
         assert summary.load_duration is not None
         assert summary.state is not None
-        assert summary.url_loaded is not None
+        if alias is not None:
+            assert summary.url_loaded is None
+        else:
+            assert summary.url_loaded is not None
     else:
         assert summary.explore_duration is None
         assert summary.load_duration is None
         assert summary.state is None
         assert summary.url_loaded is None
+    if alias is None:
+        assert summary.identifier == str(url)
+    else:
+        assert summary.identifier == alias
     visit.cleanup()
     assert puppet.close.call_count == 1
     assert puppet.clean_up.call_count == 1
@@ -256,7 +267,7 @@ def test_site_scout_process_complete_summaries(
         scout._process_complete(tmp_path)
         assert len(scout._summaries) == 1
         assert scout._summaries[0].duration > 0
-        assert scout._summaries[0].url == "http://foo/"
+        assert scout._summaries[0].identifier == "http://foo/"
         assert scout._summaries[0].force_closed == (reason == Reason.CLOSED)
         assert scout._summaries[0].has_result == (reason == Reason.ALERT)
         if explore:
@@ -387,30 +398,38 @@ def test_site_scout_run_launch_failed(mocker, tmp_path):
 
 
 @mark.parametrize(
-    "urls, input_data",
+    "urls, input_data, omit_urls",
     [
         # no urls to process
-        ([], {}),
+        ([], {}, False),
         # load urls
-        (["http://a.c/", "http://b.a.c/d"], {"a.c": {"*": ["/"], "b": ["/d"]}}),
+        (["http://a.c/", "http://b.a.c/d"], {"a.c": {"*": ["/"], "b": ["/d"]}}, False),
+        #
+        (["http://a.c/"], {"a.c": {"*": ["/"]}}, True),
     ],
 )
-def test_site_scout_load_dict(urls, input_data):
+def test_site_scout_load_dict(urls, input_data, omit_urls):
     """test SiteScout.load_dict()"""
-    with SiteScout(None) as scout:
+    with SiteScout(None, omit_urls=omit_urls) as scout:
         assert not scout._active
         scout.load_dict(input_data)
         for url in scout._urls:
             assert str(url) in urls
         assert len(urls) == len(scout._urls)
+        if omit_urls:
+            assert all(x.alias == "REDACTED" for x in scout._urls)
+        else:
+            assert all(x.alias is None for x in scout._urls)
 
 
-def test_site_scout_load_str():
+@mark.parametrize("omit_urls", [True, False])
+def test_site_scout_load_str(omit_urls):
     """test SiteScout.load_str() success"""
-    with SiteScout(None) as scout:
+    with SiteScout(None, omit_urls=omit_urls) as scout:
         scout.load_str("http://a.com/")
         assert scout._urls
         assert str(scout._urls[0]) == "http://a.com/"
+        assert scout._urls[0].alias == ("REDACTED" if omit_urls else None)
 
 
 def test_site_scout_load_str_failure():
@@ -556,7 +575,7 @@ def test_site_scout_skip_url():
         assert len(scout._urls) == 6
         assert all(x.domain in ("b", "c") for x in scout._urls)
         assert len(scout._summaries) == 3
-        assert all(x.url == "http://a/" for x in scout._summaries)
+        assert all(x.identifier == "http://a/" for x in scout._summaries)
         assert all(x.state == State.NOT_FOUND for x in scout._summaries)
 
 

@@ -30,7 +30,7 @@ class URL:
     VALID_DOMAIN = re_compile(r"[a-zA-Z0-9:.-]+")
     VALID_SUBDOMAIN = re_compile(r"[a-zA-Z0-9_.-]+")
 
-    __slots__ = ("_uid", "domain", "path", "scheme", "subdomain")
+    __slots__ = ("_uid", "alias", "domain", "path", "scheme", "subdomain")
 
     def __init__(
         self,
@@ -39,6 +39,7 @@ class URL:
         path: str = "/",
         scheme: str = "http",
     ) -> None:
+        self.alias: str | None = None
         self.domain = domain
         self.path = path
         self.scheme = scheme
