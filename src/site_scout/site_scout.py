@@ -55,7 +55,19 @@ def trim(in_str: str, max_len: int) -> str:
 # pylint: disable=too-many-instance-attributes
 @dataclass(eq=False, frozen=True)
 class VisitSummary:
-    """Store data from completed Visit for analysis."""
+    """Store data from completed Visit for analysis.
+
+    Attributes:
+        duration: Length of visit in seconds.
+        url: Location to attempt to visit.
+        force_closed: Browser was forcibly closed.
+        has_result: Indicates that results were detected.
+        explore_duration: Time in seconds spent interacting with content.
+        load_duration: Time in seconds spent loading content.
+        state: Enum representing visit progress.
+        url_collection: An optional label to track origin of URL.
+        url_loaded: URL actually visited.
+    """
 
     duration: float
     url: str
@@ -64,6 +76,7 @@ class VisitSummary:
     explore_duration: float | None = None
     load_duration: float | None = None
     state: State | None = None
+    url_collection: str | None = None
     url_loaded: str | None = None
 
 
@@ -134,7 +147,7 @@ class URL:
     ALLOWED_SCHEMES = frozenset(("http", "https"))
     VALID_DOMAIN = re_compile(r"[a-zA-Z0-9_.-]")
 
-    __slots__ = ("_uid", "domain", "path", "scheme", "subdomain")
+    __slots__ = ("_alias", "_uid", "domain", "path", "scheme", "subdomain")
 
     def __init__(
         self,
@@ -143,6 +156,7 @@ class URL:
         path: str = "/",
         scheme: str = "http",
     ) -> None:
+        self._alias: str | None = None
         self.domain = domain
         self.path = path
         self.scheme = scheme
@@ -153,6 +167,36 @@ class URL:
         if self.subdomain is None or self.subdomain == NO_SUBDOMAIN:
             return f"{self.scheme}://{self.domain}{self.path}"
         return f"{self.scheme}://{self.subdomain}.{self.domain}{self.path}"
+
+    @property
+    def alias(self) -> str:
+        """Get alias.
+
+        Args:
+            None
+
+        Returns:
+            Specified alias or url if unspecified.
+        """
+        if self._alias is None:
+            return str(self)
+        return self._alias
+
+    @alias.setter
+    def alias(self, value: Any) -> None:
+        """Set alias.
+
+        Args:
+            value: Value to use as alias.
+
+        Returns:
+            None
+        """
+        if not isinstance(value, str):
+            raise ValueError("Alias must be a string")
+        if not value:
+            raise ValueError("Alias is empty")
+        self._alias = value
 
     # pylint: disable=too-many-return-statements
     @classmethod
@@ -292,7 +336,7 @@ class Visit:
             return self._end_time - self._start_time
         return perf_counter() - self._start_time
 
-    def summary(self) -> VisitSummary:
+    def summary(self, omit_url: bool) -> VisitSummary:
         """Create VisitSummary from Visit data.
 
         Args:
@@ -304,18 +348,26 @@ class Visit:
         assert not self.is_active()
         has_result = self.puppet.reason in frozenset((Reason.ALERT, Reason.WORKER))
         force_closed = self.puppet.reason == Reason.CLOSED
+        url_collection = getenv("URL_COLLECTION")
         if self.explorer is not None:
             return VisitSummary(
                 self.duration(),
-                str(self.url),
+                self.url.alias,
                 force_closed,
                 has_result,
                 explore_duration=self.explorer.status.explore_duration,
                 load_duration=self.explorer.status.load_duration,
                 state=self.explorer.status.state,
-                url_loaded=self.explorer.status.url_loaded,
+                url_collection=url_collection,
+                url_loaded=None if omit_url else self.explorer.status.url_loaded,
             )
-        return VisitSummary(self.duration(), str(self.url), force_closed, has_result)
+        return VisitSummary(
+            self.duration(),
+            self.url.alias,
+            force_closed,
+            has_result,
+            url_collection=url_collection,
+        )
 
     def is_active(self) -> bool:
         """Check if visit is in progress.
@@ -349,12 +401,14 @@ class SiteScout:
         "_launch_timeout",
         "_log_limit",
         "_memory_limit",
+        "_omit_urls",
         "_prefs",
         "_profile",
         "_summaries",
         "_urls",
     )
 
+    # pylint: disable=too-many-locals
     def __init__(
         self,
         binary: Path,
@@ -371,6 +425,7 @@ class SiteScout:
         explore: bool = False,
         fuzzmanager: bool = False,
         coverage: bool = False,
+        omit_urls: bool = False,
     ) -> None:
         assert launch_failure_limit > 0
         self._active: list[Visit] = []
@@ -391,6 +446,7 @@ class SiteScout:
         self._launch_timeout = launch_timeout
         self._log_limit = log_limit
         self._memory_limit = memory_limit
+        self._omit_urls = omit_urls
         self._prefs = prefs_js
         self._profile = profile
         # reporter
@@ -502,6 +558,8 @@ class SiteScout:
                     )
                     # avoid duplicates
                     if url.uid not in existing:
+                        if self._omit_urls:
+                            url.alias = "REDACTED"
                         self._urls.append(url)
                         existing.add(url.uid)
                     total_urls += 1
@@ -522,23 +580,37 @@ class SiteScout:
         Returns:
             None
         """
-        assert url
+        formatted = self._parse_url(url)
+        # add unique urls to queue
+        # NOTE: this might get slow with large lists
+        if formatted is not None and formatted.uid not in {x.uid for x in self._urls}:
+            if self._omit_urls:
+                formatted.alias = "REDACTED"
+            self._urls.append(formatted)
+
+    @staticmethod
+    def _parse_url(url: str) -> URL | None:
+        """Parse and sanitize string as URL.
+
+        Args:
+            url: Input to parse.
+
+        Returns:
+            URL object if string is successfully parsed otherwise None.
+        """
+        if not url:
+            raise ValueError("URL is empty")
         if "://" not in url:
             url = f"http://{url}"
         parsed = urlsplit(url, allow_fragments=False)
         if parsed.scheme not in URL.ALLOWED_SCHEMES:
-            LOG.error("Unsupported scheme in URL: %r", url)
+            LOG.error("Unsupported scheme in URL: '%s'", url)
             return None
         path = parsed.path if parsed.path else "/"
         if parsed.query:
             path = f"{path}?{parsed.query}"
         # this currently does not separate domain and subdomain
-        formatted = URL.create(parsed.netloc, path=path, scheme=parsed.scheme)
-        # add unique urls to queue
-        # NOTE: this might get slow with large lists
-        if formatted is not None and formatted.uid not in {x.uid for x in self._urls}:
-            self._urls.append(formatted)
-        return None
+        return URL.create(parsed.netloc, path=path, scheme=parsed.scheme)
 
     # pylint: disable=too-many-branches
     def _process_active(
@@ -623,12 +695,14 @@ class SiteScout:
         results = 0
         while self._complete:
             LOG.debug("%d complete visit(s) to process", len(self._complete))
-            visit = self._complete.pop()
             # collect summary
-            summary = visit.summary()
+            # NOTE: ALL reported data should be derived from summary
+            visit = self._complete.pop()
+            summary = visit.summary(omit_url=self._omit_urls)
             self._summaries.append(summary)
             # process and report result
             if summary.has_result:
+                # WARNING: START REPORTING/SAVING DATA
                 dst = log_path / strftime(f"%Y%m%d-%H%M%S-result-{visit.url.uid[:6]}")
                 visit.puppet.save_logs(dst)
                 results += 1
@@ -647,9 +721,8 @@ class SiteScout:
                     metadata["explore_state"] = summary.state.name
                 if summary.url_loaded is not None:
                     metadata["url_loaded"] = summary.url_loaded
-                url_collection = getenv("URL_COLLECTION")
-                if url_collection is not None:
-                    metadata["url_collection"] = url_collection
+                if summary.url_collection is not None:
+                    metadata["url_collection"] = summary.url_collection
                 with (dst / "metadata.json").open("w") as ofp:
                     dump(metadata, ofp, indent=2, sort_keys=True)
                 # report result
@@ -660,6 +733,8 @@ class SiteScout:
                     rmtree(dst)
                 else:
                     LOG.info("Saved as '%s'", dst)
+                # DONE REPORTING/SAVING DATA
+
             # handle page load failures
             if summary.state == State.LOAD_FAILURE:
                 LOG.info("Page load failure: '%s'", summary.url)

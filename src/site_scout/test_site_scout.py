@@ -78,12 +78,35 @@ def test_url_create_failures(domain, subdomain, path, scheme):
     assert URL.create(domain, subdomain=subdomain, path=path, scheme=scheme) is None
 
 
-@mark.parametrize("explore", [False, True])
-def test_visit_basic(mocker, explore):
+def test_url_alias():
+    """test URL.alias"""
+    url = URL("a", subdomain="b")
+    # no alias set
+    assert url._alias is None
+    assert url.alias == str(url)
+    assert url.alias == "http://b.a/"
+    # set alias
+    url.alias = "foo"
+    assert url._alias == "foo"
+    assert url.alias == "foo"
+    # invalid alias values
+    with raises(ValueError, match="Alias must be a string"):
+        url.alias = 0
+    with raises(ValueError, match="Alias is empty"):
+        url.alias = ""
+
+
+@mark.parametrize("explore", (True, False))
+@mark.parametrize("omit_urls", (True, False))
+@mark.parametrize("alias", (None, "foo"))
+def test_visit_basic(mocker, explore, omit_urls, alias):
     """test Visit"""
     exp = mocker.patch("site_scout.site_scout.Explorer", autospec=True).return_value
     puppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True).return_value
-    visit = Visit(puppet, URL("foo"), explorer=exp if explore else None)
+    url = URL("foo")
+    if alias is not None:
+        url.alias = alias
+    visit = Visit(puppet, url, explorer=exp if explore else None)
     assert visit.is_active()
     assert visit.duration() != visit.duration()
     assert visit.puppet == puppet
@@ -99,18 +122,25 @@ def test_visit_basic(mocker, explore):
     assert visit.duration() == visit.duration()
     assert puppet.close.call_count == 1
     assert puppet.clean_up.call_count == 0
-    summary = visit.summary()
+    summary = visit.summary(omit_urls)
     if explore:
         assert exp.close.call_count == 1
         assert summary.explore_duration is not None
         assert summary.load_duration is not None
         assert summary.state is not None
-        assert summary.url_loaded is not None
+        if omit_urls:
+            assert summary.url_loaded is None
+        else:
+            assert summary.url_loaded is not None
     else:
         assert summary.explore_duration is None
         assert summary.load_duration is None
         assert summary.state is None
         assert summary.url_loaded is None
+    if alias is None:
+        assert summary.url == str(url)
+    else:
+        assert summary.url == alias
     visit.cleanup()
     assert puppet.close.call_count == 1
     assert puppet.clean_up.call_count == 1
@@ -452,51 +482,61 @@ def test_site_scout_run_launch_failed(mocker, tmp_path):
 
 
 @mark.parametrize(
-    "urls, input_data",
+    "urls, input_data, omit_urls",
     [
         # no urls to process
-        ([], {}),
+        ([], {}, False),
         # load urls
-        (["http://a.c/", "http://b.a.c/d"], {"a.c": {"*": ["/"], "b": ["/d"]}}),
+        (["http://a.c/", "http://b.a.c/d"], {"a.c": {"*": ["/"], "b": ["/d"]}}, False),
+        #
+        (["http://a.c/"], {"a.c": {"*": ["/"]}}, True),
     ],
 )
-def test_site_scout_load_dict(urls, input_data):
+def test_site_scout_load_dict(urls, input_data, omit_urls):
     """test SiteScout.load_dict()"""
-    with SiteScout(None) as scout:
+    with SiteScout(None, omit_urls=omit_urls) as scout:
         assert not scout._active
         scout.load_dict(input_data)
         for url in scout._urls:
             assert str(url) in urls
         assert len(urls) == len(scout._urls)
+        if omit_urls:
+            assert all(x.alias == "REDACTED" for x in scout._urls)
 
 
 @mark.parametrize(
-    "url, result",
+    "url, result, omit_urls",
     [
         # domain and tld (missing scheme)
-        ("a.b", "http://a.b/"),
+        ("a.b", "http://a.b/", False),
         # subdomain, domain and tld
-        ("a.b.c", "http://a.b.c/"),
+        ("a.b.c", "http://a.b.c/", False),
         # with scheme https
-        ("https://a.b.c/", "https://a.b.c/"),
+        ("https://a.b.c/", "https://a.b.c/", False),
         # with scheme http
-        ("http://a.b.c", "http://a.b.c/"),
+        ("http://a.b.c", "http://a.b.c/", False),
         # with port
-        ("a.b:1234", "http://a.b:1234/"),
+        ("a.b:1234", "http://a.b:1234/", False),
         # port and path
-        ("a.b:1234/c", "http://a.b:1234/c"),
+        ("a.b:1234/c", "http://a.b:1234/c", False),
         # port, path, parameters, query and fragment
-        ("a.b/c;p?q=1&q2#f", "http://a.b/c;p?q=1&q2#f"),
+        ("a.b/c;p?q=1&q2#f", "http://a.b/c;p?q=1&q2#f", False),
         # normalizing domain and scheme
-        ("HTTPS://A.B.C/eFg1", "https://a.b.c/eFg1"),
+        ("HTTPS://A.B.C/eFg1", "https://a.b.c/eFg1", False),
+        # verifying omitting URLs
+        ("a.b", "http://a.b/", True),
     ],
 )
-def test_site_scout_load_str(url, result):
+def test_site_scout_load_str(url, result, omit_urls):
     """test SiteScout.load_str() success"""
-    with SiteScout(None) as scout:
+    with SiteScout(None, omit_urls=omit_urls) as scout:
         scout.load_str(url)
         assert scout._urls
         assert result in str(scout._urls[0])
+        if omit_urls:
+            assert all(x.alias == "REDACTED" for x in scout._urls)
+        else:
+            assert all(x.alias == result for x in scout._urls)
 
 
 @mark.parametrize(
@@ -526,6 +566,12 @@ def test_site_scout_load_collision():
         assert len(scout._urls) == 1
         scout.load_dict({"b.c": {"a": ["/"]}})
         assert len(scout._urls) == 1
+
+
+def test_site_scout_load_str_empty():
+    """test loading an empty string"""
+    with SiteScout(None) as scout, raises(ValueError, match="URL is empty"):
+        scout.load_str("")
 
 
 @mark.parametrize(
