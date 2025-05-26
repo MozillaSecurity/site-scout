@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import cast
 
 from .main import init_logging
-from .site_scout import NO_SUBDOMAIN, UrlDB
+from .site_scout import UrlDB
+from .url import NO_SUBDOMAIN
 from .url_collection import UrlCollection
 
 LOG = getLogger(__name__)

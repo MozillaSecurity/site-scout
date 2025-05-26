@@ -17,7 +17,8 @@ except ImportError:
     from yaml import SafeDumper  # type: ignore
 
 from .main import init_logging, load_input
-from .site_scout import URL, UrlDB, URLParseError
+from .site_scout import UrlDB
+from .url import URL, URLParseError
 
 if TYPE_CHECKING:
     from collections.abc import Generator
