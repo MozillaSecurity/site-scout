@@ -9,7 +9,15 @@ from ffpuppet import BrowserTerminatedError, LaunchError, Reason
 from pytest import mark, raises
 
 from .explorer import State
-from .site_scout import NO_SUBDOMAIN, URL, SiteScout, Status, Visit, verify_dict
+from .site_scout import (
+    NO_SUBDOMAIN,
+    URL,
+    SiteScout,
+    Status,
+    URLParseError,
+    Visit,
+    verify_dict,
+)
 
 
 def test_url_str():
@@ -49,33 +57,117 @@ def test_url_create(domain, subdomain, path, scheme, expected):
 
 
 @mark.parametrize(
-    "domain, subdomain, path, scheme",
+    "domain, subdomain, path, scheme, msg",
     [
         # bad domain
-        ("*", None, "/", "http"),
+        ("*", None, "/", "http", "Invalid domain '*'"),
         # bad domain
-        ("", None, "/", "http"),
+        ("", None, "/", "http", "Invalid domain ''"),
         # bad domain
-        (".a.c", None, "/", "http"),
+        ("b a.d", None, "/", "http", "Invalid domain 'b a.d'"),
+        # bad domain
+        ("b_a.d", None, "/", "http", "Invalid domain 'b_a.d'"),
+        # bad domain
+        (".a.c", None, "/", "http", "Invalid domain '.a.c'"),
         # bad subdomain
-        ("a.c", f"{NO_SUBDOMAIN}.foo", "/", "http"),
+        ("a.c", f"{NO_SUBDOMAIN}.foo", "/", "http", r"Invalid subdomain '\*.foo'"),
         # bad subdomain
-        ("a.c", "$.foo", "/", "http"),
+        ("a.c", "$.foo", "/", "http", r"Invalid subdomain '\$.foo'"),
         # bad subdomain
-        ("a.c", "", "/d", "http"),
+        ("a.c", "", "/d", "http", "Empty subdomain"),
         # bad subdomain
-        ("a.c", "..a", "/", "http"),
+        ("a.c", "..a", "/", "http", "Invalid subdomain '..a'"),
+        # bad subdomain
+        ("d.c", "b a", "/", "http", "Invalid subdomain 'b a'"),
+        # bad subdomain
+        ("d.c", "b_a", "/", "http", "Invalid subdomain 'b_a'"),
         # bad path
-        ("a.c", None, "", "http"),
+        ("a.c", None, "", "http", "Path must begin with '/'"),
         # bad path
-        ("a.c", None, "foo", "http"),
+        ("a.c", None, "foo", "http", "Path must begin with '/'"),
         # bad scheme
-        ("a.c", None, "/", "foo"),
+        ("a.c", None, "/", "foo", "Invalid scheme 'foo'"),
     ],
 )
-def test_url_create_failures(domain, subdomain, path, scheme):
-    """test URL.create()"""
-    assert URL.create(domain, subdomain=subdomain, path=path, scheme=scheme) is None
+def test_url_create_failures(domain, subdomain, path, scheme, msg):
+    """test URL.create() - failures"""
+    with raises(URLParseError, match=msg):
+        URL.create(domain, subdomain=subdomain, path=path, scheme=scheme)
+
+
+@mark.parametrize(
+    "url_str, expected",
+    [
+        # http scheme, domain and tld
+        ("http://domain.com/", "http://domain.com/"),
+        # https scheme, domain and tld
+        ("https://domain.com/", "https://domain.com/"),
+        # http scheme, domain, subdomain and tld
+        ("http://sub.domain.com/", "http://sub.domain.com/"),
+        # https scheme, domain, subdomain and tld
+        ("https://sub.domain.com/", "https://sub.domain.com/"),
+        # subdomain, domain and tld (missing scheme)
+        ("sub.domain.com", "http://sub.domain.com/"),
+        # domain and tld (missing scheme)
+        ("domain.com", "http://domain.com/"),
+        # trailing space
+        ("domain.com ", "http://domain.com/"),
+        # trailing space after path
+        ("domain.com/ ", "http://domain.com/"),
+        # trailing space after path
+        ("domain.com/test ", "http://domain.com/test"),
+        # contains credentials
+        ("user:pass@domain.com", "http://domain.com/"),
+        # multipart tld
+        ("domain.co.uk", "http://domain.co.uk/"),
+        # with path
+        ("domain.com/test", "http://domain.com/test"),
+        # query
+        ("domain.com/test?123", "http://domain.com/test?123"),
+        # fragment
+        ("domain.com/test#123", "http://domain.com/test#123"),
+        # normalize domain, subdomain and scheme
+        ("HTTP://SUB.DOMAIN.COM/TeSt", "http://sub.domain.com/TeSt"),
+        # non-ascii and space in path
+        ("domain.com/El Niño", "http://domain.com/El%20Ni%C3%B1o"),
+        # non-ascii in domain and subdomain
+        ("fóò.café.fr/test", "http://xn--f-tgac.xn--caf-dma.fr/test"),
+        # with port
+        ("a.com:1234", "http://a.com:1234/"),
+        # port and path
+        ("a.com:1234/c", "http://a.com:1234/c"),
+        # port, path, parameters, query and fragment
+        ("a.com:80/c;p?q=1&q2#f", "http://a.com:80/c;p?q=1&q2#f"),
+    ],
+)
+def test_url_parse(url_str, expected):
+    """test URL.parse()"""
+    assert str(URL.parse(url_str)) == expected
+
+
+@mark.parametrize(
+    "url_str, msg",
+    [
+        ("", "Empty location"),
+        ("/", "Empty location"),
+        ("http://", "Empty location"),
+        ("user:name@", "Empty location"),
+        (f"http://{NO_SUBDOMAIN}.a.com/", "Special value used for subdomain"),
+        ("test", "Missing suffix"),
+        ("about:config", "Missing suffix"),
+        (".com", "Missing domain"),
+        ("data:text/html,TEST", "Missing domain"),
+        ("http://b ad.com/", "Invalid domain 'b ad.com'"),
+        ("http://..a.com/", "Invalid subdomain '.'"),
+        ("ftp://a.b.com", "Unsupported scheme 'ftp'"),
+        ("http://a.com:foo", "Invalid port value"),
+        ("http://a.com:0", "Invalid port value"),
+    ],
+)
+def test_url_parse_invalid_strings(url_str, msg):
+    """test URL.parse() - invalid strings()"""
+    with raises(URLParseError, match=msg):
+        URL.parse(url_str)
 
 
 @mark.parametrize("explore", [False, True])
@@ -470,61 +562,29 @@ def test_site_scout_load_dict(urls, input_data):
         assert len(urls) == len(scout._urls)
 
 
-@mark.parametrize(
-    "url, result",
-    [
-        # domain and tld (missing scheme)
-        ("a.b", "http://a.b/"),
-        # subdomain, domain and tld
-        ("a.b.c", "http://a.b.c/"),
-        # with scheme https
-        ("https://a.b.c/", "https://a.b.c/"),
-        # with scheme http
-        ("http://a.b.c", "http://a.b.c/"),
-        # with port
-        ("a.b:1234", "http://a.b:1234/"),
-        # port and path
-        ("a.b:1234/c", "http://a.b:1234/c"),
-        # port, path, parameters, query and fragment
-        ("a.b/c;p?q=1&q2#f", "http://a.b/c;p?q=1&q2#f"),
-        # normalizing domain and scheme
-        ("HTTPS://A.B.C/eFg1", "https://a.b.c/eFg1"),
-    ],
-)
-def test_site_scout_load_str(url, result):
+def test_site_scout_load_str():
     """test SiteScout.load_str() success"""
     with SiteScout(None) as scout:
-        scout.load_str(url)
+        scout.load_str("http://a.com/")
         assert scout._urls
-        assert result in str(scout._urls[0])
+        assert str(scout._urls[0]) == "http://a.com/"
 
 
-@mark.parametrize(
-    "url",
-    [
-        # invalid scheme
-        "ftp://a.b.c",
-        # unparsable domain
-        "http://..a.c/",
-        # unsupported subdomain
-        f"http://{NO_SUBDOMAIN}.a.c/",
-    ],
-)
-def test_site_scout_load_str_failures(url):
+def test_site_scout_load_str_failure():
     """test SiteScout.load_str() failures"""
     with SiteScout(None) as scout:
-        assert scout.load_str(url) is None
+        assert scout.load_str("foo") is None
 
 
 def test_site_scout_load_collision():
     """test loading an existing URL"""
-    existing = "a.b.c"
+    existing = "a.b.com"
     with SiteScout(None) as scout:
         scout.load_str(existing)
         assert len(scout._urls) == 1
         scout.load_str(existing)
         assert len(scout._urls) == 1
-        scout.load_dict({"b.c": {"a": ["/"]}})
+        scout.load_dict({"b.com": {"a": ["/"]}})
         assert len(scout._urls) == 1
 
 

@@ -5,7 +5,7 @@
 # pylint: disable=missing-docstring,protected-access
 from logging import NOTSET, disable
 
-from pytest import mark, raises
+from pytest import raises
 
 from .url_collection import UrlCollection, main, parse_args
 
@@ -16,38 +16,6 @@ BASIC_URL_DB = {
         "sd2-2": ["/"],
     },
 }
-
-
-@mark.parametrize(
-    "url_str, expected",
-    [
-        ("http://domain.com/", "http://domain.com/"),
-        ("http://sub.domain.com/", "http://sub.domain.com/"),
-        ("https://sub.domain.com/", "http://sub.domain.com/"),
-        ("sub.domain.com", "http://sub.domain.com/"),
-        ("domain.com", "http://domain.com/"),
-        ("domain.com/ ", "http://domain.com/"),
-        ("domain.com/test ", "http://domain.com/test"),
-        ("user:pass@domain.com", "http://domain.com/"),
-        ("domain.co.uk", "http://domain.co.uk/"),
-        ("domain.com/test", "http://domain.com/test"),
-        ("domain.com/test?123", "http://domain.com/test?123"),
-        ("domain.com/test#123", "http://domain.com/test#123"),
-        ("HTTP://SUB.DOMAIN.COM/TEST", "http://sub.domain.com/TEST"),
-        ("domain.com/El Niño", "http://domain.com/El%20Ni%C3%B1o"),
-        ("fóò.café.fr/test", "http://xn--f-tgac.xn--caf-dma.fr/test"),
-        ("*.domain.com", None),
-        ("failed-parse", None),
-    ],
-)
-def test_url_collection_parse_url(url_str, expected):
-    """test UrlCollection._parse_url()"""
-    parsed = UrlCollection._parse_url(url_str, default_subdomain=None)
-    if expected is None:
-        assert parsed is None
-    else:
-        assert parsed
-        assert str(parsed) == expected
 
 
 def test_url_collection_01():

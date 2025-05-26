@@ -8,9 +8,7 @@ from bisect import insort
 from logging import DEBUG, INFO, getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
-from urllib.parse import urlsplit
 
-from tldextract import extract
 from yaml import dump
 
 try:
@@ -19,7 +17,7 @@ except ImportError:
     from yaml import SafeDumper  # type: ignore
 
 from .main import init_logging, load_input
-from .site_scout import NO_SUBDOMAIN, URL, UrlDB
+from .site_scout import URL, UrlDB, URLParseError
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -48,38 +46,6 @@ class UrlCollection:
             for sub in self._db[domain]:
                 for path in self._db[domain][sub]:
                     yield URL(domain, subdomain=sub, path=path)
-
-    @staticmethod
-    def _parse_url(url: str, default_subdomain: str = NO_SUBDOMAIN) -> URL | None:
-        """Parse URL from given string.
-
-        Args:
-            url: URL to parse.
-            default_subdomain: Placeholder for empty subdomain.
-
-        Returns:
-            URL object if successfully parsed otherwise None.
-        """
-        if "://" not in url:
-            url = f"http://{url}"
-        parsed_url = urlsplit(url, allow_fragments=False)
-        # TODO: handle params?
-        assert parsed_url.netloc
-        # URL domain info
-        udi = extract(parsed_url.netloc)
-        if not udi.domain or not udi.suffix or udi.subdomain == NO_SUBDOMAIN:
-            return None
-        assert udi.domain, f"{parsed_url.netloc} -> {udi}"
-        assert udi.suffix, f"{parsed_url.netloc} -> {udi}"
-        path = parsed_url.path.strip() or "/"
-        if parsed_url.query:
-            path = f"{path}?{parsed_url.query}"
-        return URL.create(
-            f"{udi.domain}.{udi.suffix}",
-            # replace empty/missing subdomain with placeholder
-            subdomain=udi.subdomain if udi.subdomain else default_subdomain,
-            path=path,
-        )
 
     def add_list(self, urls_file: Path) -> int:
         """Load a text file containing a line separated list of URLs and add them
@@ -111,20 +77,22 @@ class UrlCollection:
         Returns:
             URL that was added.
         """
-        parsed = self._parse_url(url)
-        if parsed is None:
-            LOG.debug("failed to parse and add: %r", url)
+        try:
+            parsed = URL.parse(url)
+        except URLParseError:
+            LOG.debug("failed to parse and add: '%s'", url)
             self.unparsable.add(url)
-        else:
-            assert parsed.subdomain is not None
-            if parsed.domain not in self._db:
-                self._db[parsed.domain] = {}
-            if parsed.subdomain not in self._db[parsed.domain]:
-                self._db[parsed.domain][parsed.subdomain] = []
-            if parsed.path not in self._db[parsed.domain][parsed.subdomain]:
-                insort(self._db[parsed.domain][parsed.subdomain], parsed.path)
-                LOG.debug("added: %s", parsed)
-                return parsed
+            return None
+
+        assert parsed.subdomain is not None
+        if parsed.domain not in self._db:
+            self._db[parsed.domain] = {}
+        if parsed.subdomain not in self._db[parsed.domain]:
+            self._db[parsed.domain][parsed.subdomain] = []
+        if parsed.path not in self._db[parsed.domain][parsed.subdomain]:
+            insort(self._db[parsed.domain][parsed.subdomain], parsed.path)
+            LOG.debug("added: %s", parsed)
+            return parsed
         return None
 
     @property
@@ -165,16 +133,17 @@ class UrlCollection:
         Returns:
             True if the URL was removed otherwise False.
         """
-        parsed = self._parse_url(url)
-        if parsed is None:
-            LOG.debug("failed to parse and remove: %r", url)
+        try:
+            parsed = URL.parse(url)
+        except URLParseError:
+            LOG.debug("failed to parse and remove: '%s'", url)
             return False
         assert parsed.subdomain is not None
 
         try:
             self._db[parsed.domain][parsed.subdomain].remove(parsed.path)
         except (KeyError, ValueError):
-            LOG.debug("failed to remove unknown url: %r", url)
+            LOG.debug("failed to remove unknown url: '%s'", url)
             return False
 
         # remove empty domain/subdomain entries
