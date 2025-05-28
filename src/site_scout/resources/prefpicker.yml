@@ -114,6 +114,13 @@ pref:
     variants:
       default:
       - ''
+  # sites with lots of ads or third party content can spawn a lot of processes
+  # randomly force disable fission to help prevent OOMs
+  fission.autostart:
+    variants:
+      default:
+      - false
+      - null
   # normally only enabled on devices with touchscreens (emilio)
   layout.accessiblecaret.enabled:
     variants:
