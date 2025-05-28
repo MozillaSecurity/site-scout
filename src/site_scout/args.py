@@ -109,11 +109,10 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
         help="Browser memory limit in MBs (default: no limit).",
     )
     parser.add_argument(
-        "--prefs",
-        type=Path,
-        help="Custom prefs.js file to use (default: generated).",
+        "--omit-urls",
+        action="store_true",
+        help="Do not include URLs in saved results (default: %(default)s).",
     )
-    parser.add_argument("--profile", type=Path, help="")
     parser.add_argument(
         "-o",
         "--output-path",
@@ -121,6 +120,12 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
         type=Path,
         help="Location to save results (default: %(default)s).",
     )
+    parser.add_argument(
+        "--prefs",
+        type=Path,
+        help="Custom prefs.js file to use (default: generated).",
+    )
+    parser.add_argument("--profile", type=Path)
     parser.add_argument(
         "--result-limit",
         type=int,

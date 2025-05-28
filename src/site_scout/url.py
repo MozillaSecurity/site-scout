@@ -6,9 +6,13 @@ from __future__ import annotations
 from hashlib import sha1
 from re import compile as re_compile
 from string import punctuation
+from typing import TYPE_CHECKING
 from urllib.parse import quote, urlsplit
 
 from tldextract import extract
+
+if TYPE_CHECKING:
+    from typing import Any
 
 # This is used as a placeholder for empty subdomains
 # WARNING: If this changes all yml files will need to be updated
@@ -25,7 +29,7 @@ class URL:
     ALLOWED_SCHEMES = frozenset(("http", "https"))
     VALID_DOMAIN = re_compile(r"[a-zA-Z0-9:.-]+")
 
-    __slots__ = ("_uid", "domain", "path", "scheme", "subdomain")
+    __slots__ = ("_alias", "_uid", "domain", "path", "scheme", "subdomain")
 
     def __init__(
         self,
@@ -34,6 +38,7 @@ class URL:
         path: str = "/",
         scheme: str = "http",
     ) -> None:
+        self._alias: str | None = None
         self.domain = domain
         self.path = path
         self.scheme = scheme
@@ -44,6 +49,36 @@ class URL:
         if self.subdomain is None or self.subdomain == NO_SUBDOMAIN:
             return f"{self.scheme}://{self.domain}{self.path}"
         return f"{self.scheme}://{self.subdomain}.{self.domain}{self.path}"
+
+    @property
+    def alias(self) -> str:
+        """Get alias.
+
+        Args:
+            None
+
+        Returns:
+            Specified alias or url if unspecified.
+        """
+        if self._alias is None:
+            return str(self)
+        return self._alias
+
+    @alias.setter
+    def alias(self, value: Any) -> None:
+        """Set alias.
+
+        Args:
+            value: Value to use as alias.
+
+        Returns:
+            None
+        """
+        if not isinstance(value, str):
+            raise ValueError("Alias must be a string")
+        if not value:
+            raise ValueError("Alias is empty")
+        self._alias = value
 
     @classmethod
     def create(

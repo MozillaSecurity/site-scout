@@ -178,7 +178,7 @@ class Explorer:
                     return
                 url_loaded = explorer.current_url
                 load_duration = perf_counter() - start_time
-                LOG.debug("loaded: %r (%r)", title, url_loaded)
+                LOG.debug("loaded in %0.1fs: %r (%r)", load_duration, title, url_loaded)
                 # wait for more content to load/render
                 can_skip.wait(timeout=LOAD_WAIT)
                 # attempt to find and activate "skip to content" link

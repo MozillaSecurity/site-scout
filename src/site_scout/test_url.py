@@ -15,6 +15,24 @@ def test_url_str():
     assert str(URL("a.c")) == str(URL("a.c", subdomain=NO_SUBDOMAIN))
 
 
+def test_url_alias():
+    """test URL.alias"""
+    url = URL("a", subdomain="b")
+    # no alias set
+    assert url._alias is None
+    assert url.alias == str(url)
+    assert url.alias == "http://b.a/"
+    # set alias
+    url.alias = "foo"
+    assert url._alias == "foo"
+    assert url.alias == "foo"
+    # invalid alias values
+    with raises(ValueError, match="Alias must be a string"):
+        url.alias = 0
+    with raises(ValueError, match="Alias is empty"):
+        url.alias = ""
+
+
 @mark.parametrize(
     "domain, subdomain, path, scheme, expected",
     [
