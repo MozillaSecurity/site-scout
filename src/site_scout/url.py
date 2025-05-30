@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from hashlib import sha1
+from logging import WARNING, getLogger
 from re import compile as re_compile
 from string import punctuation
 from urllib.parse import quote, urlsplit
@@ -13,6 +14,9 @@ from tldextract import extract
 # This is used as a placeholder for empty subdomains
 # WARNING: If this changes all yml files will need to be updated
 NO_SUBDOMAIN = "*"
+
+# suppress output from filelock (used by tldextract)
+getLogger("filelock").setLevel(WARNING)
 
 
 class URLParseError(Exception):
