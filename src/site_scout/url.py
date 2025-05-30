@@ -28,6 +28,7 @@ class URL:
 
     ALLOWED_SCHEMES = frozenset(("http", "https"))
     VALID_DOMAIN = re_compile(r"[a-zA-Z0-9:.-]+")
+    VALID_SUBDOMAIN = re_compile(r"[a-zA-Z0-9_.-]+")
 
     __slots__ = ("_uid", "domain", "path", "scheme", "subdomain")
 
@@ -70,14 +71,13 @@ class URL:
         """
         scheme = scheme.lower()
         if scheme not in cls.ALLOWED_SCHEMES:
-            raise URLParseError(f"Invalid scheme '{scheme}'")
+            raise URLParseError(f"Unsupported scheme '{scheme}'")
 
         try:
             # use idna to encode domain with non ascii characters
             domain = domain.lower().encode("idna").decode("ascii")
         except UnicodeError:
             raise URLParseError(f"Invalid domain '{domain}'") from None
-
         if cls.VALID_DOMAIN.fullmatch(domain) is None:
             raise URLParseError(f"Invalid domain '{domain}'")
 
@@ -88,22 +88,21 @@ class URL:
                 subdomain = subdomain.lower().encode("idna").decode("ascii")
             except UnicodeError:
                 raise URLParseError(f"Invalid subdomain '{subdomain}'") from None
-            if cls.VALID_DOMAIN.fullmatch(subdomain) is None:
+            if cls.VALID_SUBDOMAIN.fullmatch(subdomain) is None:
                 raise URLParseError(f"Invalid subdomain '{subdomain}'")
 
         if not path.startswith("/"):
             raise URLParseError("Path must begin with '/'")
-
         # percent encode non ascii characters in path if needed
         if not path.isascii():
             path = quote(path, safe=punctuation)
 
         return cls(domain, subdomain=subdomain, path=path, scheme=scheme)
 
-    # pylint: disable=too-many-branches
     @classmethod
     def parse(cls, url: str, default_subdomain: str | None = NO_SUBDOMAIN) -> URL:
-        """Parse URL from given string.
+        """Parse URL from a given string. Only URLs with a valid domain and tld are
+        supported. IP addresses, `about:` pages, etc, are not supported.
 
         Args:
             url: Input to parse.
@@ -116,7 +115,6 @@ class URL:
         if "://" not in url:
             url = f"http://{url}"
         parsed = urlsplit(url, allow_fragments=False)
-        # TODO: handle params?
 
         # strip credentials
         if "@" in parsed.netloc:
@@ -124,17 +122,14 @@ class URL:
         else:
             netloc = parsed.netloc
 
-        if not netloc:
-            raise URLParseError("Empty location")
-        if parsed.scheme not in cls.ALLOWED_SCHEMES:
-            raise URLParseError(f"Unsupported scheme '{parsed.scheme}'")
-
-        # URL domain info
+        # parse domain, subdomain and tld
         udi = extract(netloc)
         if not udi.domain:
             raise URLParseError("Missing domain")
         if not udi.suffix:
             raise URLParseError("Missing suffix")
+        if not udi.subdomain and netloc[0] == ".":
+            raise URLParseError("Invalid subdomain")
         if udi.subdomain == NO_SUBDOMAIN:
             raise URLParseError("Special value used for subdomain")
 
@@ -143,9 +138,9 @@ class URL:
             try:
                 port = int(netloc.rsplit(":", maxsplit=1)[-1])
             except ValueError:
-                raise URLParseError("Invalid port value") from None
+                raise URLParseError("Port must be a number") from None
             if port < 1 or port > 65535:
-                raise URLParseError("Invalid port value")
+                raise URLParseError("Invalid port number")
             domain = f"{udi.domain}.{udi.suffix}:{port}"
         else:
             domain = f"{udi.domain}.{udi.suffix}"
@@ -155,10 +150,10 @@ class URL:
         if parsed.query:
             path = f"{path}?{parsed.query}"
 
-        # this currently does not separate domain and subdomain
+        # sanitize parsed data and create URL
         return URL.create(
             domain,
-            # replace empty/missing subdomain with placeholder
+            # replace empty subdomain with placeholder
             subdomain=udi.subdomain or default_subdomain,
             path=path,
             scheme=parsed.scheme,
