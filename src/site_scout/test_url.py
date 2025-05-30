@@ -59,23 +59,25 @@ def test_url_create(domain, subdomain, path, scheme, expected):
         # bad domain
         (".a.c", None, "/", "http", "Invalid domain '.a.c'"),
         # bad subdomain
+        ("a.c", "", "/d", "http", "Empty subdomain"),
+        # bad subdomain
         ("a.c", f"{NO_SUBDOMAIN}.foo", "/", "http", r"Invalid subdomain '\*.foo'"),
         # bad subdomain
         ("a.c", "$.foo", "/", "http", r"Invalid subdomain '\$.foo'"),
         # bad subdomain
-        ("a.c", "", "/d", "http", "Empty subdomain"),
+        ("a.c", ".a", "/", "http", "Invalid subdomain '.a'"),
         # bad subdomain
         ("a.c", "..a", "/", "http", "Invalid subdomain '..a'"),
         # bad subdomain
         ("d.c", "b a", "/", "http", "Invalid subdomain 'b a'"),
         # bad subdomain
-        ("d.c", "b_a", "/", "http", "Invalid subdomain 'b_a'"),
+        ("d.c", "b:a", "/", "http", "Invalid subdomain 'b:a'"),
         # bad path
         ("a.c", None, "", "http", "Path must begin with '/'"),
         # bad path
         ("a.c", None, "foo", "http", "Path must begin with '/'"),
         # bad scheme
-        ("a.c", None, "/", "foo", "Invalid scheme 'foo'"),
+        ("a.c", None, "/", "foo", "Unsupported scheme 'foo'"),
     ],
 )
 def test_url_create_failures(domain, subdomain, path, scheme, msg):
@@ -137,20 +139,20 @@ def test_url_parse(url_str, expected):
 @mark.parametrize(
     "url_str, msg",
     [
-        ("", "Empty location"),
-        ("/", "Empty location"),
-        ("http://", "Empty location"),
-        ("user:name@", "Empty location"),
-        (f"http://{NO_SUBDOMAIN}.a.com/", "Special value used for subdomain"),
-        ("test", "Missing suffix"),
-        ("about:config", "Missing suffix"),
+        ("", "Missing domain"),
+        ("/", "Missing domain"),
+        ("http://", "Missing domain"),
+        ("user:name@", "Missing domain"),
         (".com", "Missing domain"),
         ("data:text/html,TEST", "Missing domain"),
-        ("http://b ad.com/", "Invalid domain 'b ad.com'"),
-        ("http://..a.com/", "Invalid subdomain '.'"),
-        ("ftp://a.b.com", "Unsupported scheme 'ftp'"),
-        ("http://a.com:foo", "Invalid port value"),
-        ("http://a.com:0", "Invalid port value"),
+        (".a.com", r"Invalid subdomain$"),
+        (f"http://{NO_SUBDOMAIN}.a.com/", "Special value used for subdomain"),
+        ("test", "Missing suffix"),
+        ("192.168.1.1", "Missing suffix"),
+        ("about:config", "Missing suffix"),
+        ("foo.notarealtld", "Missing suffix"),
+        ("http://a.com:foo", "Port must be a number"),
+        ("http://a.com:0", "Invalid port number"),
     ],
 )
 def test_url_parse_invalid_strings(url_str, msg):
