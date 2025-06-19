@@ -3,6 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 from __future__ import annotations
 
+from json import JSONDecodeError, loads
 from logging import DEBUG, basicConfig, disable, getLogger
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -71,44 +72,82 @@ def generate_prefs(dst: Path | None = None, variant: str = "a11y") -> Path:
     return prefs
 
 
-def load_input(src: Iterable[Path], allow_empty: bool = False) -> Generator[UrlDB]:
-    """Load data from filesystem.
+def load_jsonl(src: Path) -> Generator[tuple[str, str | None]]:
+    """Load data from a jsonl file.
+
+    The expected format is:
+        {"url1": "alias1"}\n
+        {"url2": "alias2"}\n
+        {"url3": null}\n
+        ...
 
     Arguments:
-        src: Files and directories to load data from.
+        src: File to load data from.
+
+    Yields:
+        URL and alias.
+    """
+    LOG.debug("loading (jsonl) '%s'", src.resolve())
+    with src.open("r") as in_fp:
+        try:
+            for line in in_fp:
+                line = line.strip()
+                # ignore blank lines
+                if not line:
+                    continue
+                result = loads(line)
+                # there should be exactly one entry
+                if len(result) != 1:
+                    LOG.error("Invalid line format in '%s'", src.resolve())
+                    break
+                url, alias = result.popitem()
+                if alias is not None and not isinstance(alias, str):
+                    LOG.error("Invalid alias value in '%s'", src.resolve())
+                    break
+                yield url, alias
+        except JSONDecodeError as exc:
+            LOG.error("Invalid data in '%s' (%s)", src.resolve(), exc)
+
+
+def load_yml(src: Path, allow_empty: bool = False) -> Generator[UrlDB]:
+    """Load data from a yml file.
+
+    Arguments:
+        src: File to load data from.
         allow_empty: Empty data set is valid if True.
 
     Yields:
         URL data.
     """
-    for entry in scan_input(src):
-        LOG.debug("loading '%s'", entry.resolve())
-        with entry.open("r") as in_fp:
-            try:
-                data = load(in_fp, Loader=SafeLoader)
-            except (ParserError, ReaderError, ScannerError):
-                LOG.warning("Load failure - Invalid yml (ignored: %s)", entry)
-                continue
-        err_msg = verify_dict(data, allow_empty=allow_empty)
-        if err_msg:
-            LOG.warning("Load failure - %s (ignored: %s)", err_msg, entry)
-            continue
+    LOG.debug("loading (yml) '%s'", src.resolve())
+    with src.open("r") as in_fp:
+        try:
+            data = load(in_fp, Loader=SafeLoader)
+        except (ParserError, ReaderError, ScannerError):
+            LOG.warning("Load failure - Invalid yml (ignored: %s)", src.resolve())
+            return
+    err_msg = verify_dict(data, allow_empty=allow_empty)
+    if err_msg:
+        LOG.warning("Load failure - %s (ignored: %s)", err_msg, src.resolve())
+    else:
         yield data
 
 
-def scan_input(src: Iterable[Path]) -> Generator[Path]:
+def scan_input(src: Iterable[Path], suffix: str) -> Generator[Path]:
     """Scan provided locations for input files.
 
     Arguments:
-        src: Paths the evaluate.
+        src: Paths to scan.
+        suffix: Only files with this suffix will be included.
 
     Yields:
-        URL files to load.
+        Data files to load.
     """
+    assert suffix.startswith(".")
     for entry in src:
-        if entry.resolve().is_dir():
-            yield from entry.glob("*.yml")
-        else:
+        if entry.is_dir():
+            yield from entry.glob(f"*{suffix}")
+        elif entry.suffix.lower() == suffix:
             yield entry
 
 
@@ -143,8 +182,15 @@ def main(argv: list[str] | None = None) -> int:
             omit_urls=args.omit_urls,
         ) as scout:
             LOG.info("Loading URLs...")
-            for data in load_input(args.input):
-                scout.load_dict(data)
+            # load jsonl files
+            for src in scan_input(args.input, ".jsonl"):
+                for in_url, alias in load_jsonl(src):
+                    scout.load_str(in_url, alias=alias)
+            # load yml files
+            for src in scan_input(args.input, ".yml"):
+                for data in load_yml(src):
+                    scout.load_dict(data)
+            # load urls from command line
             for in_url in args.url:
                 scout.load_str(in_url)
             # don't randomize urls passed on the command line
