@@ -16,7 +16,7 @@ try:
 except ImportError:
     from yaml import SafeDumper  # type: ignore
 
-from .main import init_logging, load_input
+from .main import init_logging, load_yml
 from .site_scout import UrlDB
 from .url import URL, URLParseError
 
@@ -165,10 +165,8 @@ class UrlCollection:
         Returns:
             UrlCollection.
         """
-        data = next(load_input([src], allow_empty=True), None)
-        if data is not None:
-            return cls(data)
-        return None
+        data = next(load_yml(src, allow_empty=True), None)
+        return None if data is None else cls(data)
 
     def save_yml(self, dst: Path) -> None:
         """Save UrlCollection to a YML file.

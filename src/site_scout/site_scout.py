@@ -432,11 +432,12 @@ class SiteScout:
             len(existing),
         )
 
-    def load_str(self, url: str) -> None:
+    def load_str(self, url: str, alias: str | None = None) -> None:
         """Parse, sanitize and add a URL to the queue.
 
         Args:
             url: Location to visit.
+            alias: Value to use as alias if available.
 
         Returns:
             None
@@ -450,7 +451,9 @@ class SiteScout:
         # add unique urls to queue
         # NOTE: this might get slow with large lists
         if formatted is not None and formatted.uid not in {x.uid for x in self._urls}:
-            if self._omit_urls:
+            if alias is not None:
+                formatted.alias = alias
+            elif self._omit_urls:
                 formatted.alias = "REDACTED"
             self._urls.append(formatted)
 

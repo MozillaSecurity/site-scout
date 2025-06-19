@@ -7,7 +7,7 @@ from logging import NOTSET, disable
 from ffpuppet import BrowserTerminatedError
 from pytest import mark
 
-from .main import generate_prefs, load_input, main
+from .main import generate_prefs, load_jsonl, load_yml, main, scan_input
 
 
 @mark.parametrize(
@@ -32,9 +32,13 @@ def test_main_01(caplog, capsys, mocker, tmp_path, args):
     default_args = [str(fake_bin)]
     # -i or -u is required (create yml file)
     if "-u" not in args:
-        data = tmp_path / "data.yml"
-        data.write_text("{'d':{'s':['/']}}")
-        default_args.extend(["-i", str(data)])
+        # test yml loading path
+        yml_file = tmp_path / "data.yml"
+        yml_file.write_text("{'d':{'s':['/']}}")
+        # test jsonl loading path
+        jsonl_file = tmp_path / "data.jsonl"
+        jsonl_file.write_text('{"a": "b"}\n')
+        default_args.extend(["-i", str(yml_file), str(jsonl_file)])
     try:
         assert main(default_args + args) == 0
     finally:
@@ -79,31 +83,81 @@ def test_generate_prefs_01(tmp_path):
     assert generate_prefs(dst=tmp_path).is_file()
 
 
-def test_load_input_01(tmp_path):
-    """test load_input()"""
-    # empty list
-    assert not tuple(load_input([]))
+def test_load_yml_simple(tmp_path):
+    """test load_yml() with valid data"""
+    (tmp_path / "sites.yml").write_text("{'d':{'s':['/']}}")
+    results = tuple(load_yml(tmp_path / "sites.yml"))
+    assert len(results) == 1
+
+
+@mark.parametrize(
+    "data",
+    [
+        b"",
+        b"foo",
+        b"{-",
+        b"\0",
+        b"{}",
+    ],
+)
+def test_load_yml_invalid_data(tmp_path, data):
+    """test load_yml() with invalid data"""
+    (tmp_path / "test.yml").write_bytes(data)
+    assert not any(load_yml(tmp_path / "test.yml"))
+
+
+def test_load_jsonl_simple(tmp_path):
+    """test load_jsonl() with valid data"""
+    (tmp_path / "sites.jsonl").write_text(
+        '{"a.com": "423-456-7853"}\n'
+        '{"b.com": "333-422-2222"}\n'
+        '{"c.com": "123-456-7890"}\n'
+        '{"d.com": ""}\n'
+        '{"e.com": null}\n'
+    )
+    results = tuple(load_jsonl(tmp_path / "sites.jsonl"))
+    assert len(results) == 5
+
+
+@mark.parametrize(
+    "data",
+    [
+        # empty file
+        b"",
+        # invalid chars ' should be "
+        b"{'url': 'alias'}\n",
+        # empty entry
+        b"{}\n",
+        # empty lines
+        b"\n\n\n",
+        # invalid data
+        b'{"a": []}\n',
+        # invalid data
+        b'{"a"}\n',
+    ],
+)
+def test_load_jsonl_invalid_data(tmp_path, data):
+    """test load_jsonl() with invalid data"""
+    (tmp_path / "test.yml").write_bytes(data)
+    assert not any(load_jsonl(tmp_path / "test.yml"))
+
+
+def test_scan_input(tmp_path):
+    """test scan_input()"""
+    # no paths
+    assert not any(scan_input([], ".foo"))
     # empty directory
-    assert not tuple(load_input([tmp_path]))
-
-    valid = "{'d':{'s':['/']}}"
-    # single input file
-    in_file = tmp_path / "sites.yml"
-    in_file.write_text(valid)
-    results = tuple(load_input([in_file]))
+    assert not any(scan_input([tmp_path], ".foo"))
+    # single file
+    (tmp_path / "test.yml").touch()
+    assert any(scan_input([(tmp_path / "test.yml")], ".yml"))
+    # single file in directory
+    print(tuple(scan_input([tmp_path], ".yml")))
+    assert any(scan_input([tmp_path], ".yml"))
+    # no suffix match
+    assert not any(scan_input([tmp_path], ".foo"))
+    # multiple files in directory
+    (tmp_path / "test.jsonl").touch()
+    results = tuple(scan_input([tmp_path], ".yml"))
     assert len(results) == 1
-    # multiple input files
-    results = tuple(load_input([in_file, in_file]))
-    assert len(results) == 2
-    # single input directory
-    results = tuple(load_input([tmp_path]))
-    assert len(results) == 1
-
-    # invalid file data
-    (tmp_path / "ignore.txt").write_text("foo")
-    (tmp_path / "bad.yml").write_text("{-")
-    (tmp_path / "sites.yml").write_text(valid)
-    (tmp_path / "a.yml").write_text("foo")
-    (tmp_path / "cont-char.yml").write_bytes(b"\0")
-    results = tuple(load_input([tmp_path]))
-    assert len(results) == 1
+    assert results[0].suffix == ".yml"
