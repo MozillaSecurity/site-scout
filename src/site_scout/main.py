@@ -89,24 +89,25 @@ def load_jsonl(src: Path) -> Generator[tuple[str, str | None]]:
     """
     LOG.debug("loading (jsonl) '%s'", src.resolve())
     with src.open("r") as in_fp:
+        line_no = 0
         try:
-            for line in in_fp:
+            for line_no, line in enumerate(in_fp, start=1):
                 line = line.strip()
                 # ignore blank lines
                 if not line:
                     continue
                 result = loads(line)
                 # there should be exactly one entry
-                if len(result) != 1:
-                    LOG.error("Invalid line format in '%s'", src.resolve())
+                if not isinstance(result, dict) or len(result) != 1:
+                    LOG.error("Invalid format: '%s:%d'", src.resolve(), line_no)
                     break
                 url, alias = result.popitem()
                 if alias is not None and not isinstance(alias, str):
-                    LOG.error("Invalid alias value in '%s'", src.resolve())
+                    LOG.error("Invalid alias: '%s:%d'", src.resolve(), line_no)
                     break
                 yield url, alias
         except JSONDecodeError as exc:
-            LOG.error("Invalid data in '%s' (%s)", src.resolve(), exc)
+            LOG.error("Invalid data: '%s:%d' (%s)", src.resolve(), line_no, exc)
 
 
 def load_yml(src: Path, allow_empty: bool = False) -> Generator[UrlDB]:

@@ -134,6 +134,8 @@ def test_load_jsonl_simple(tmp_path):
         b'{"a": []}\n',
         # invalid data
         b'{"a"}\n',
+        # invalid data
+        b"[1]\n",
     ],
 )
 def test_load_jsonl_invalid_data(tmp_path, data):
