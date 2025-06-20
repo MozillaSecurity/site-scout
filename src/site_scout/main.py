@@ -148,7 +148,7 @@ def scan_input(src: Iterable[Path], suffix: str) -> Generator[Path]:
     for entry in src:
         if entry.is_dir():
             yield from entry.glob(f"*{suffix}")
-        elif entry.suffix.lower() == suffix:
+        elif entry.suffix == suffix:
             yield entry
 
 
