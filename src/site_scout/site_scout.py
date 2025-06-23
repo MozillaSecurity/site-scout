@@ -9,6 +9,14 @@ from itertools import chain
 from json import dump
 from logging import getLogger
 from os import getenv
+
+try:
+    from os import getloadavg  # type: ignore[attr-defined]
+
+    _LOAD_AVG = True
+except ImportError:
+    _LOAD_AVG = False
+
 from pathlib import Path
 from random import shuffle
 from shutil import rmtree
@@ -86,6 +94,7 @@ class Status:
         self._rate_limit = rate_limit
         self._start = perf_counter()
 
+    # pylint: disable=too-many-locals
     def report(
         self,
         active: int,
@@ -95,7 +104,8 @@ class Status:
         results: int,
         not_found: int,
         load_failure: int,
-        avg_duration: int,
+        avg_duration: int = 0,
+        include_rate: bool = False,
         force: bool = False,
     ) -> None:
         """Write status report to the filesystem.
@@ -108,6 +118,8 @@ class Status:
             results: Number of results found.
             not_found: Number of 'server not found' errors.
             load_failure: Number of page load failures.
+            avg_duration: Average page visit duration.
+            include_rate: Include visit rate.
             force: Ignore rate limit and report.
 
         Returns:
@@ -117,6 +129,7 @@ class Status:
         if not force and self._next > now:
             return
         comp_pct = (completed / target) * 100 if target else 0.0
+        runtime = now - self._start
         with self._dst.open("w") as lfp:
             lfp.write(f" Active/Limit : {active}/{jobs}\n")
             lfp.write(f"Current/Total : {completed}/{target} ({comp_pct:0.1f}%)\n")
@@ -129,7 +142,12 @@ class Status:
                 lfp.write(f"Load Failures : {load_failure} ({lf_pct:0.1f}%)\n")
             if avg_duration > 0:
                 lfp.write(f" Avg Duration : {avg_duration}s\n")
-            lfp.write(f"      Runtime : {timedelta(seconds=int(now - self._start))}\n")
+            if include_rate:
+                rate = int(completed / (runtime / 60 / 60)) if runtime else 0
+                lfp.write(f"   Visit Rate : {rate}\n")
+            if _LOAD_AVG:
+                lfp.write(f"  System Load : {getloadavg()}\n")
+            lfp.write(f"      Runtime : {timedelta(seconds=int(runtime))}\n")
             lfp.write(f"    Timestamp : {strftime('%Y/%m/%d %X %z', gmtime())}\n")
         self._next = now + self._rate_limit
 
@@ -715,7 +733,6 @@ class SiteScout:
                     total_results,
                     sum(1 for x in self._summaries if x.state == State.NOT_FOUND),
                     sum(1 for x in self._summaries if x.state == State.LOAD_FAILURE),
-                    0,
                 )
 
             # select url to visit and launch browser
@@ -776,18 +793,19 @@ class SiteScout:
 
         # final status report
         if status:
-            if self._summaries:
-                # only include "successful" page loads in calculation
-                avg_duration = int(
+            avg_duration = (
+                int(
                     sum(
+                        # only include "successful" page loads in calculation
                         x.duration
                         for x in self._summaries
                         if x.state not in PAGE_LOAD_FAILURES
                     )
                     / len(self._summaries)
                 )
-            else:
-                avg_duration = 0
+                if self._summaries
+                else 0
+            )
 
             status.report(
                 len(self._active),
@@ -797,7 +815,8 @@ class SiteScout:
                 total_results,
                 sum(1 for x in self._summaries if x.state == State.NOT_FOUND),
                 sum(1 for x in self._summaries if x.state == State.LOAD_FAILURE),
-                avg_duration,
+                avg_duration=avg_duration,
+                include_rate=True,
                 force=True,
             )
         LOG.info(
