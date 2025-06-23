@@ -94,7 +94,6 @@ class Status:
         self._rate_limit = rate_limit
         self._start = perf_counter()
 
-    # pylint: disable=too-many-locals
     def report(
         self,
         active: int,
@@ -287,7 +286,6 @@ class SiteScout:
         "_urls",
     )
 
-    # pylint: disable=too-many-locals
     def __init__(
         self,
         binary: Path,
@@ -678,7 +676,6 @@ class SiteScout:
         if removed > 0:
             LOG.info("Skipping %d related queued URLs", removed)
 
-    # pylint: disable=too-many-locals
     def run(
         self,
         log_path: Path,

@@ -38,6 +38,7 @@ disable = [
     "missing-module-docstring",
     "too-few-public-methods",
     "too-many-arguments",
+    "too-many-locals",
     "too-many-positional-arguments",
     "too-many-statements",
 ]

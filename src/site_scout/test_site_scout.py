@@ -336,7 +336,7 @@ def test_site_scout_run(
     explore,
     result_limit,
     runtime_limit,
-):  # pylint: disable=too-many-locals
+):
     """test SiteScout.run()"""
 
     # pylint: disable=unused-argument
