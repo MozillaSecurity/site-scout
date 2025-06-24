@@ -9,7 +9,7 @@ from ffpuppet import BrowserTerminatedError, LaunchError, Reason
 from pytest import mark, raises
 
 from .explorer import State
-from .site_scout import SiteScout, Status, Visit, verify_dict
+from .site_scout import _LOAD_AVG, SiteScout, Status, Visit, verify_dict
 from .url import URL
 
 
@@ -457,16 +457,17 @@ def test_site_scout_load_collision():
 
 
 @mark.parametrize(
-    "active, jobs, completed, target, results, not_found, load_failure, avg_dur, force",
+    "active, jobs, completed, target, results, not_found, load_failure, avg_dur,"
+    "visit_rate, force",
     [
         # nothing running
-        (0, 1, 0, 0, 0, 0, 0, 0, False),
+        (0, 1, 0, 0, 0, 0, 0, 0, True, False),
         # running with single site to visit
-        (1, 1, 0, 1, 0, 0, 0, 0, False),
+        (1, 1, 0, 1, 0, 0, 0, 0, False, False),
         # running with single site to visit, forced report
-        (1, 1, 0, 1, 0, 0, 0, 0, True),
+        (1, 1, 0, 1, 0, 0, 0, 0, False, True),
         # typical scenario
-        (2, 3, 4, 10, 1, 1, 1, 33, False),
+        (2, 3, 4, 10, 1, 1, 1, 33, True, False),
     ],
 )
 def test_site_scout_status(
@@ -480,6 +481,7 @@ def test_site_scout_status(
     not_found,
     load_failure,
     avg_dur,
+    visit_rate,
     force,
 ):
     """test Status()"""
@@ -496,7 +498,8 @@ def test_site_scout_status(
         results,
         not_found,
         load_failure,
-        avg_dur,
+        avg_duration=avg_dur,
+        include_rate=visit_rate,
         force=force,
     )
     assert dst.is_file()
@@ -530,6 +533,14 @@ def test_site_scout_status(
         assert "Avg Duration :" in output
     else:
         assert "Avg Duration :" not in output
+    if visit_rate:
+        assert "Visit Rate :" in output
+    else:
+        assert "Visit Rate :" not in output
+    if _LOAD_AVG:
+        assert "System Load :" in output
+    else:
+        assert "System Load :" not in output
 
 
 @mark.parametrize(
