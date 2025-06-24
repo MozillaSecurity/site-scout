@@ -605,6 +605,8 @@ class SiteScout:
             elif summary.state == State.NOT_FOUND:
                 LOG.info("Server Not Found: '%s'", summary.identifier)
                 self._skip_url(visit.url, state=State.NOT_FOUND)
+            elif summary.state == State.UNHANDLED_ERROR:
+                LOG.info("Unexpected load error: %s", summary.identifier)
             visit.cleanup()
         return results
 

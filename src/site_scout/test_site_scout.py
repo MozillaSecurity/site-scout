@@ -234,6 +234,7 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
         (Reason.EXITED, True, State.CLOSED),
         (Reason.CLOSED, True, State.LOAD_FAILURE),
         (Reason.CLOSED, True, State.NOT_FOUND),
+        (Reason.CLOSED, True, State.UNHANDLED_ERROR),
         (Reason.EXITED, False, None),
     ],
 )
