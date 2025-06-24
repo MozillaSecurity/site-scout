@@ -423,7 +423,7 @@ def test_site_scout_load_dict(urls, input_data, omit_urls):
             assert all(x.alias is None for x in scout._urls)
 
 
-@mark.parametrize("alias", ["foo", None])
+@mark.parametrize("alias", ["foo", "", None])
 @mark.parametrize("omit_urls", [True, False])
 def test_site_scout_load_str(alias, omit_urls):
     """test SiteScout.load_str() success"""
@@ -431,7 +431,7 @@ def test_site_scout_load_str(alias, omit_urls):
         scout.load_str("http://a.com/", alias=alias)
         assert scout._urls
         assert str(scout._urls[0]) == "http://a.com/"
-        if alias is not None:
+        if alias:
             assert scout._urls[0].alias == "foo"
         elif omit_urls:
             assert scout._urls[0].alias == "REDACTED"
