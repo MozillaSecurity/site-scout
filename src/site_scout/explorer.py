@@ -173,7 +173,12 @@ class Explorer:
                         state = State.LOAD_FAILURE
                     else:
                         state = State.UNHANDLED_ERROR
-                        LOG.warning("Failed to get: %s (%r)", url, title)
+                    LOG.debug(
+                        "failed to get (%0.1fs): %s (%r)",
+                        perf_counter() - start_time,
+                        url,
+                        title,
+                    )
                     # the browser is running but page cannot be loaded
                     return
                 url_loaded = explorer.current_url
