@@ -468,7 +468,7 @@ class SiteScout:
         # add unique urls to queue
         # NOTE: this might get slow with large lists
         if formatted is not None and formatted.uid not in {x.uid for x in self._urls}:
-            if alias is not None:
+            if alias:
                 formatted.alias = alias
             elif self._omit_urls:
                 formatted.alias = "REDACTED"
