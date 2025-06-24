@@ -145,7 +145,8 @@ class Status:
                 rate = int(completed / (runtime / 60 / 60)) if runtime else 0
                 lfp.write(f"   Visit Rate : {rate}\n")
             if _LOAD_AVG:
-                lfp.write(f"  System Load : {getloadavg()}\n")
+                sys_load = ", ".join(f"{x:0.2f}" for x in getloadavg())
+                lfp.write(f"  System Load : {sys_load}\n")
             lfp.write(f"      Runtime : {timedelta(seconds=int(runtime))}\n")
             lfp.write(f"    Timestamp : {strftime('%Y/%m/%d %X %z', gmtime())}\n")
         self._next = now + self._rate_limit
