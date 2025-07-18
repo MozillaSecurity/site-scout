@@ -3,6 +3,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 # pylint: disable=protected-access
+from page_explorer import PageLoad
 from pytest import mark, raises
 
 from .explorer import Explorer, ExplorerError, State
@@ -11,25 +12,26 @@ from .explorer import Explorer, ExplorerError, State
 @mark.parametrize(
     "get_value, explore_return, state, title",
     (
-        # navigation hung or failed
+        # navigation failed
         (ExplorerError(), False, State.LOADING, None),
         # failed to get page title
-        (True, True, State.CLOSED, None),
+        (PageLoad.SUCCESS, True, State.CLOSED, None),
         # server not found
-        (False, False, State.NOT_FOUND, "Server Not Found"),
+        (PageLoad.FAILURE, False, State.NOT_FOUND, "Server Not Found"),
         # problem loading page
-        (False, False, State.LOAD_FAILURE, "Problem loading page"),
+        (PageLoad.FAILURE, False, State.LOAD_FAILURE, "Problem loading page"),
         # unknown navigate/load failure
-        (False, False, State.UNHANDLED_ERROR, "error title"),
+        (PageLoad.FAILURE, False, State.UNHANDLED_ERROR, "error title"),
         # browser crashed
-        (True, False, State.EXPLORING, "title"),
+        (PageLoad.SUCCESS, False, State.EXPLORING, "title"),
         # successful interaction and browser closed
-        (True, True, State.CLOSED, "title"),
+        (PageLoad.SUCCESS, True, State.CLOSED, "title"),
+        # get timeout
+        (PageLoad.TIMEOUT, True, State.CLOSED, "title"),
     ),
 )
 def test_explorer(mocker, tmp_path, get_value, explore_return, state, title):
     """test Explorer()"""
-    mocker.patch("site_scout.explorer.LOAD_WAIT", 0)
     page_explorer = mocker.patch(
         "site_scout.explorer.PageExplorer", autospec=True
     ).return_value.__enter__.return_value
@@ -38,7 +40,7 @@ def test_explorer(mocker, tmp_path, get_value, explore_return, state, title):
     page_explorer.get.side_effect = (get_value,)
     page_explorer.is_connected.return_value = False
     page_explorer.title = title
-    with Explorer(tmp_path, 0, "http://foo.foo") as explorer:
+    with Explorer(tmp_path, 0, "http://foo.foo", pause=0) as explorer:
         assert not explorer._can_skip.is_set()
         # allow explore thread to complete
         explorer._thread.join(timeout=10)
@@ -46,7 +48,7 @@ def test_explorer(mocker, tmp_path, get_value, explore_return, state, title):
         assert not explorer.is_running()
         assert explorer._can_skip.is_set()
         assert explorer.status.state == state
-        if get_value is True:
+        if get_value in (PageLoad.SUCCESS, PageLoad.TIMEOUT):
             assert explorer.status.load_duration > 0
             assert explorer.status.url_loaded == "http://foo.foo"
         else:

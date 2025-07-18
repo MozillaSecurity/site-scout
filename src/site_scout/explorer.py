@@ -11,7 +11,7 @@ from threading import Event, Thread
 from time import perf_counter
 from typing import TYPE_CHECKING
 
-from page_explorer import ExplorerError, PageExplorer
+from page_explorer import ExplorerError, PageExplorer, PageLoad
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 getLogger("selenium").setLevel(WARNING)
 getLogger("urllib3").setLevel(ERROR)
 
-LOAD_WAIT = 10
 LOG = getLogger(__name__)
 
 
@@ -62,7 +61,14 @@ class Explorer:
 
     __slots__ = ("_can_skip", "_queue", "_status", "_thread")
 
-    def __init__(self, binary: Path, port: int, url: str) -> None:
+    def __init__(
+        self,
+        binary: Path,
+        port: int,
+        url: str,
+        load_wait: int = 60,
+        pause: int = 10,
+    ) -> None:
         # init is used to wait for PageExplorer to connect
         init = Event()
         self._can_skip = Event()
@@ -70,7 +76,16 @@ class Explorer:
         self._status: ExplorerStatus | None = None
         self._thread = Thread(
             target=self._run,
-            args=(binary, port, url, self._queue, self._can_skip, init),
+            args=(
+                binary,
+                port,
+                url,
+                self._queue,
+                self._can_skip,
+                load_wait,
+                pause,
+                init,
+            ),
         )
         self._thread.start()
         # wait for PageExplorer to connect before continuing
@@ -132,6 +147,8 @@ class Explorer:
         url: str,
         queue: Queue[ExplorerStatus],
         can_skip: Event,
+        load_wait: int,
+        pause: int,
         init: Event,
     ) -> None:
         """Interact with content via PageExplorer.
@@ -140,8 +157,10 @@ class Explorer:
             binary: Binary launched.
             port: Browser driver listening port.
             url: Url to visit.
-            queue:
+            queue: Used to pass results.
             can_skip: Used to delay execution.
+            load_wait: Time in seconds to wait for page to load before continuing.
+            pause: Time in seconds to wait after load attempt is finished.
             init: Used to delay initialization of Explorer until PageExplorer is ready.
 
         Returns:
@@ -163,10 +182,10 @@ class Explorer:
                 # attempt to navigate and load page
                 state = State.LOADING
                 start_time = perf_counter()
-                get_result = explorer.get(url)
+                get_result = explorer.get(url, wait=load_wait)
                 title = explorer.title
                 # verify page load
-                if not get_result:
+                if get_result == PageLoad.FAILURE:
                     if title == "Server Not Found":
                         state = State.NOT_FOUND
                     elif title == "Problem loading page":
@@ -174,7 +193,8 @@ class Explorer:
                     else:
                         state = State.UNHANDLED_ERROR
                     LOG.debug(
-                        "failed to get (%0.1fs): %s (%r)",
+                        "load: %s (%0.1fs) - %s (%r)",
+                        get_result.name,
                         perf_counter() - start_time,
                         url,
                         title,
@@ -183,9 +203,16 @@ class Explorer:
                     return
                 url_loaded = explorer.current_url
                 load_duration = perf_counter() - start_time
-                LOG.debug("loaded in %0.1fs: %r (%r)", load_duration, title, url_loaded)
-                # wait for more content to load/render
-                can_skip.wait(timeout=LOAD_WAIT)
+                LOG.debug(
+                    "load: %s (%0.1fs) - %r (%r)",
+                    get_result.name,
+                    load_duration,
+                    title,
+                    url_loaded,
+                )
+                # wait for more content to load/render/run
+                LOG.debug("pausing for %ds...", pause)
+                can_skip.wait(timeout=pause)
                 # attempt to find and activate "skip to content" link
                 state = State.SKIP_CONTENT
                 explorer.skip_to_content()

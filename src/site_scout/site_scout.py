@@ -387,7 +387,13 @@ class SiteScout:
             if self._explore:
                 assert ffp.marionette is not None
                 # this can raise RuntimeError
-                explorer = Explorer(self._binary, ffp.marionette, str(url))
+                explorer = Explorer(
+                    self._binary,
+                    ffp.marionette,
+                    str(url),
+                    load_wait=60 if self._debugger == Debugger.NONE else 90,
+                    pause=10,
+                )
             self._active.append(Visit(ffp, url, explorer=explorer))
             self._launch_failures = 0
             success = True
