@@ -17,11 +17,12 @@ except ImportError:
     from yaml import SafeDumper  # type: ignore
 
 from .main import init_logging, load_yml
-from .site_scout import UrlDB
 from .url import URL, URLParseError
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+
+    from .site_scout import UrlDB
 
 LOG = getLogger(__name__)
 
@@ -32,7 +33,7 @@ class UrlCollection:
     __slots__ = ("_db", "unparsable")
 
     def __init__(self, url_db: UrlDB | None = None) -> None:
-        self._db = url_db or cast(UrlDB, {})
+        self._db = url_db or cast("UrlDB", {})
         self.unparsable: set[str] = set()
 
     def __len__(self) -> int:
