@@ -100,6 +100,7 @@ class URL:
 
         return cls(domain, subdomain=subdomain, path=path, scheme=scheme)
 
+    # pylint: disable=too-many-branches
     @classmethod
     def parse(cls, url: str, default_subdomain: str | None = NO_SUBDOMAIN) -> URL:
         """Parse URL from a given string. Only URLs with a valid domain and tld are
@@ -115,7 +116,10 @@ class URL:
         url = url.strip()
         if "://" not in url:
             url = f"http://{url}"
-        parsed = urlsplit(url, allow_fragments=False)
+        try:
+            parsed = urlsplit(url, allow_fragments=False)
+        except ValueError:
+            raise URLParseError("Invalid URL") from None
 
         # strip credentials
         if "@" in parsed.netloc:

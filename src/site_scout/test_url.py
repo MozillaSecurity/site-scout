@@ -153,6 +153,7 @@ def test_url_parse(url_str, expected):
         ("foo.notarealtld", "Missing suffix"),
         ("http://a.com:foo", "Port must be a number"),
         ("http://a.com:0", "Invalid port number"),
+        ("http://[a.com/", "Invalid URL"),
     ],
 )
 def test_url_parse_invalid_strings(url_str, msg):
