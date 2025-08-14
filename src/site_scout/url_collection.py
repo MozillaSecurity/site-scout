@@ -17,7 +17,7 @@ except ImportError:
     from yaml import SafeDumper  # type: ignore
 
 from .main import init_logging, load_yml
-from .url import URL, URLParseError
+from .url import NO_SUBDOMAIN, URL, URLParseError
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -45,9 +45,13 @@ class UrlCollection:
 
     def __iter__(self) -> Generator[URL]:
         for domain in self._db:
-            for sub in self._db[domain]:
-                for path in self._db[domain][sub]:
-                    yield URL(domain, subdomain=sub, path=path)
+            for subdomain in self._db[domain]:
+                for path in self._db[domain][subdomain]:
+                    yield URL(
+                        domain,
+                        subdomain=subdomain if subdomain != NO_SUBDOMAIN else None,
+                        path=path,
+                    )
 
     def add_list(self, urls_file: Path) -> int:
         """Load a text file containing a line separated list of URLs and add them
@@ -86,13 +90,13 @@ class UrlCollection:
             self.unparsable.add(url)
             return None
 
-        assert parsed.subdomain is not None
+        subdomain = parsed.subdomain or NO_SUBDOMAIN
         if parsed.domain not in self._db:
             self._db[parsed.domain] = {}
-        if parsed.subdomain not in self._db[parsed.domain]:
-            self._db[parsed.domain][parsed.subdomain] = []
-        if parsed.path not in self._db[parsed.domain][parsed.subdomain]:
-            insort(self._db[parsed.domain][parsed.subdomain], parsed.path)
+        if subdomain not in self._db[parsed.domain]:
+            self._db[parsed.domain][subdomain] = []
+        if parsed.path not in self._db[parsed.domain][subdomain]:
+            insort(self._db[parsed.domain][subdomain], parsed.path)
             LOG.debug("added: %s", parsed)
             return parsed
         return None
@@ -140,7 +144,8 @@ class UrlCollection:
         except URLParseError:
             LOG.debug("failed to parse and remove: '%s'", url)
             return False
-        assert parsed.subdomain is not None
+        if parsed.subdomain is None:
+            parsed.subdomain = NO_SUBDOMAIN
 
         try:
             self._db[parsed.domain][parsed.subdomain].remove(parsed.path)

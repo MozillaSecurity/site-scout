@@ -39,6 +39,7 @@ class URL:
         path: str = "/",
         scheme: str = "http",
     ) -> None:
+        assert subdomain != NO_SUBDOMAIN
         self.alias: str | None = None
         self.domain = domain
         self.path = path
@@ -47,7 +48,7 @@ class URL:
         self._uid: str | None = None
 
     def __str__(self) -> str:
-        if self.subdomain is None or self.subdomain == NO_SUBDOMAIN:
+        if self.subdomain is None:
             return f"{self.scheme}://{self.domain}{self.path}"
         return f"{self.scheme}://{self.subdomain}.{self.domain}{self.path}"
 
@@ -82,7 +83,7 @@ class URL:
         if cls.VALID_DOMAIN.fullmatch(domain) is None:
             raise URLParseError(f"Invalid domain '{domain}'")
 
-        if subdomain is not None and subdomain != NO_SUBDOMAIN:
+        if subdomain is not None:
             if not subdomain:
                 raise URLParseError("Empty subdomain")
             try:
@@ -102,13 +103,12 @@ class URL:
 
     # pylint: disable=too-many-branches
     @classmethod
-    def parse(cls, url: str, default_subdomain: str | None = NO_SUBDOMAIN) -> URL:
+    def parse(cls, url: str) -> URL:
         """Parse URL from a given string. Only URLs with a valid domain and tld are
         supported. IP addresses, `about:` pages, etc, are not supported.
 
         Args:
             url: Input to parse.
-            default_subdomain: Placeholder for empty subdomain.
 
         Returns:
             URL object if string is successfully parsed.
@@ -159,7 +159,7 @@ class URL:
         return URL.create(
             domain,
             # replace empty subdomain with placeholder
-            subdomain=udi.subdomain or default_subdomain,
+            subdomain=udi.subdomain or None,
             path=path,
             scheme=parsed.scheme,
         )

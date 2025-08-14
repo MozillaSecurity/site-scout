@@ -12,7 +12,6 @@ from .url import NO_SUBDOMAIN, URL, URLParseError
 def test_url_str():
     """test URL.__str__()"""
     assert str(URL("a.c", subdomain="b", path="/d")) == "http://b.a.c/d"
-    assert str(URL("a.c")) == str(URL("a.c", subdomain=NO_SUBDOMAIN))
 
 
 @mark.parametrize(
@@ -22,8 +21,6 @@ def test_url_str():
         ("a.c", "b", "/d", "http", "http://b.a.c/d"),
         # without a subdomain
         ("a.c", None, "/d", "http", "http://a.c/d"),
-        # with NO_SUBDOMAIN subdomain place holder
-        ("a.c", NO_SUBDOMAIN, "/d", "http", "http://a.c/d"),
         # more complex
         ("a.c:1337", "x.y", "/1/2/3.html", "https", "https://x.y.a.c:1337/1/2/3.html"),
         # normalize case (domain and subdomain only)

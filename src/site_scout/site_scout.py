@@ -435,6 +435,8 @@ class SiteScout:
             for subdomain, paths in subdomains.items():
                 total_subdomains += 1
                 for path in paths:
+                    # dicts stored in YML files use NO_SUBDOMAIN as a place holder
+                    # instead of using None
                     url = URL(
                         domain,
                         subdomain=subdomain if subdomain != NO_SUBDOMAIN else None,
@@ -466,19 +468,19 @@ class SiteScout:
             None
         """
         try:
-            formatted = URL.parse(url, default_subdomain=None)
+            parsed = URL.parse(url)
         except URLParseError as exc:
             # only show full error message when omit_urls is false
             LOG.error("Failed to parse URL%s", "" if self._omit_urls else f": {exc}")
             return
         # add unique urls to queue
         # NOTE: this might get slow with large lists
-        if formatted is not None and formatted.uid not in {x.uid for x in self._urls}:
+        if parsed.uid not in {x.uid for x in self._urls}:
             if alias:
-                formatted.alias = alias
+                parsed.alias = alias
             elif self._omit_urls:
-                formatted.alias = "REDACTED"
-            self._urls.append(formatted)
+                parsed.alias = "REDACTED"
+            self._urls.append(parsed)
 
     # pylint: disable=too-many-branches
     def _process_active(
