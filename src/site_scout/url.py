@@ -11,10 +11,6 @@ from urllib.parse import quote, urlsplit
 
 from tldextract import extract
 
-# This is used as a placeholder for empty subdomains
-# WARNING: If this changes all yml files will need to be updated
-NO_SUBDOMAIN = "*"
-
 # suppress output from filelock (used by tldextract)
 getLogger("filelock").setLevel(WARNING)
 
@@ -35,11 +31,10 @@ class URL:
     def __init__(
         self,
         domain: str,
-        subdomain: str | None = None,
+        subdomain: str = "",
         path: str = "/",
         scheme: str = "http",
     ) -> None:
-        assert subdomain != NO_SUBDOMAIN
         self.alias: str | None = None
         self.domain = domain
         self.path = path
@@ -48,7 +43,7 @@ class URL:
         self._uid: str | None = None
 
     def __str__(self) -> str:
-        if self.subdomain is None:
+        if not self.subdomain:
             return f"{self.scheme}://{self.domain}{self.path}"
         return f"{self.scheme}://{self.subdomain}.{self.domain}{self.path}"
 
@@ -56,7 +51,7 @@ class URL:
     def create(
         cls,
         domain: str,
-        subdomain: str | None = None,
+        subdomain: str = "",
         path: str = "/",
         scheme: str = "http",
     ) -> URL:
@@ -83,9 +78,7 @@ class URL:
         if cls.VALID_DOMAIN.fullmatch(domain) is None:
             raise URLParseError(f"Invalid domain '{domain}'")
 
-        if subdomain is not None:
-            if not subdomain:
-                raise URLParseError("Empty subdomain")
+        if subdomain:
             try:
                 subdomain = subdomain.lower().encode("idna").decode("ascii")
             except UnicodeError:
@@ -135,8 +128,6 @@ class URL:
             raise URLParseError("Missing suffix")
         if not udi.subdomain and netloc[0] == ".":
             raise URLParseError("Invalid subdomain")
-        if udi.subdomain == NO_SUBDOMAIN:
-            raise URLParseError("Special value used for subdomain")
 
         # parse port
         if ":" in netloc:
@@ -158,8 +149,7 @@ class URL:
         # sanitize parsed data and create URL
         return URL.create(
             domain,
-            # replace empty subdomain with placeholder
-            subdomain=udi.subdomain or None,
+            subdomain=udi.subdomain,
             path=path,
             scheme=parsed.scheme,
         )

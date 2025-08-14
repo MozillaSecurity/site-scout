@@ -38,9 +38,9 @@ site-scout <firefox-bin> -i <urls>.yml [<urls>.yml ...]
 domain.tld:
   subdomain:
   - /path
-# '*' is used to omit the subdomain
+# '' is used to omit the subdomain
 github.com:
-  '*':
+  '':
   - /MozillaSecurity/site-scout
 mozilla.org:
   www:

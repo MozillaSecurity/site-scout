@@ -29,7 +29,7 @@ from ffpuppet.display import DisplayMode
 
 from .explorer import PAGE_LOAD_FAILURES, Explorer, State
 from .reporter import FuzzManagerReporter
-from .url import NO_SUBDOMAIN, URL, URLParseError
+from .url import URL, URLParseError
 
 LOG = getLogger(__name__)
 TMP_PATH = Path(gettempdir()) / "site-scout"
@@ -435,13 +435,7 @@ class SiteScout:
             for subdomain, paths in subdomains.items():
                 total_subdomains += 1
                 for path in paths:
-                    # dicts stored in YML files use NO_SUBDOMAIN as a place holder
-                    # instead of using None
-                    url = URL(
-                        domain,
-                        subdomain=subdomain if subdomain != NO_SUBDOMAIN else None,
-                        path=path,
-                    )
+                    url = URL(domain, subdomain=subdomain, path=path)
                     # avoid duplicates
                     if url.uid not in existing:
                         if self._omit_urls:
@@ -855,7 +849,7 @@ def verify_dict(data: Any, allow_empty: bool = False) -> str | None:
             return f"Invalid domain entry: '{domain}'"
         # check subdomains
         for subdomain, paths in subdomains.items():
-            if not isinstance(subdomain, str) or not subdomain:
+            if not isinstance(subdomain, str):
                 return "Subdomain must be a string"
             if not isinstance(paths, list) or not paths:
                 return f"Invalid subdomain entry: '{subdomain}' in '{domain}'"
