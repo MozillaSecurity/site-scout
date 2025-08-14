@@ -143,7 +143,7 @@ class Status:
                 lfp.write(f" Avg Duration : {avg_duration}s\n")
             if include_rate:
                 rate = int(completed / (runtime / 60 / 60)) if runtime else 0
-                lfp.write(f"   Visit Rate : {rate}\n")
+                lfp.write(f"   Visit Rate : {rate}/h\n")
             if _LOAD_AVG:
                 sys_load = ", ".join(f"{x:0.2f}" for x in getloadavg())
                 lfp.write(f"  System Load : {sys_load}\n")
