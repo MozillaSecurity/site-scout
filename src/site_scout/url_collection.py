@@ -211,6 +211,11 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
         default=0,
         help="Display domains with the most entries (default: %(default)s).",
     )
+    parser.add_argument(
+        "--force-save",
+        action="store_true",
+        help="Save data even if no changes have been made (refresh YML file).",
+    )
     level_map = {"INFO": INFO, "DEBUG": DEBUG}
     parser.add_argument(
         "--log-level",
@@ -272,7 +277,7 @@ def main(argv: list[str] | None = None) -> int:
                 LOG.info("Removed 1 URL.")
 
         # save data
-        if changed:
+        if changed or args.force_save:
             LOG.info("Saving '%s'...", args.url_db)
             urls.save_yml(args.url_db)
         else:
