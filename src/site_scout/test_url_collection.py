@@ -40,13 +40,13 @@ def test_url_collection_02(tmp_path):
     assert urls
     # add/remove urls
     assert len(urls) == 4
-    assert urls.add_url("test.com")
+    assert urls.add_str("test.com")
     assert len(urls) == 5
     assert urls.remove_url("test.com")
     assert not urls.remove_url("test.com")
     # try adding a urls that can't be parsed
     assert not urls.unparsable
-    assert not urls.add_url("invalid")
+    assert not urls.add_str("invalid")
     assert "invalid" in urls.unparsable
     # add a list of urls from a file
     txt = tmp_path / "urls_list.txt"
@@ -80,7 +80,7 @@ def test_url_collection_sorting():
     assert urls._db["a.com"]["b"][0] == "/"
     assert urls._db["a.com"]["b"][1] == "/b"
     # added paths should be sorted
-    urls.add_url("b.a.com/a")
+    urls.add_str("b.a.com/a")
     assert urls._db["a.com"]["b"][0] == "/"
     assert urls._db["a.com"]["b"][1] == "/a"
     assert urls._db["a.com"]["b"][2] == "/b"
@@ -136,7 +136,7 @@ def test_main(tmp_path):
     assert main([str(data_file), "-r", "blah"]) == 0
     assert data_file.stat().st_size == file_size
 
-    # add urls from list file
+    # add urls from txt file
     txt = tmp_path / "urls_list.txt"
     txt.write_text("1.test.com\n\n2.test.com\n#ignored.com\nother.com")
     file_size = data_file.stat().st_size
@@ -146,6 +146,13 @@ def test_main(tmp_path):
     # display list and display domain entry counts
     assert main([str(data_file), "-d", "--domain-entries", "2"]) == 0
     assert data_file.exists()
+
+    # add urls from yml file
+    data_file.unlink()
+    yml = tmp_path / "urls_list.yml"
+    yml.write_text("'test.com':\n  '1':\n  - '/'\n  '2':\n  - '/'\n")
+    assert main([str(data_file), "-l", str(yml)]) == 0
+    assert data_file.stat().st_size > 5
 
 
 def test_main_disable_logging(caplog, capsys, tmp_path):
