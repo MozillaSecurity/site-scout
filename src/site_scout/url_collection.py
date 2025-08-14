@@ -70,12 +70,12 @@ class UrlCollection:
                 if not entry or entry[0] == "#":
                     # skip comments and empty lines
                     continue
-                if self.add_url(entry) is not None:
+                if self.add_str(entry) is not None:
                     added += 1
         return added
 
-    def add_url(self, url: str) -> URL | None:
-        """Load a single URL and add it to the list of known URLs.
+    def add_str(self, url: str) -> URL | None:
+        """Parse URL from a given string and add it to the collection of known URLs.
 
         Args:
             url: URL to add.
@@ -89,17 +89,27 @@ class UrlCollection:
             LOG.debug("failed to parse and add: '%s'", url)
             self.unparsable.add(url)
             return None
+        return parsed if self.add_url(parsed) else None
 
-        subdomain = parsed.subdomain or NO_SUBDOMAIN
-        if parsed.domain not in self._db:
-            self._db[parsed.domain] = {}
-        if subdomain not in self._db[parsed.domain]:
-            self._db[parsed.domain][subdomain] = []
-        if parsed.path not in self._db[parsed.domain][subdomain]:
-            insort(self._db[parsed.domain][subdomain], parsed.path)
-            LOG.debug("added: %s", parsed)
-            return parsed
-        return None
+    def add_url(self, url: URL) -> bool:
+        """Add a URL to the collection of known URLs.
+
+        Args:
+            url: URL to add.
+
+        Returns:
+            True if the URL was added otherwise False.
+        """
+        if url.domain not in self._db:
+            self._db[url.domain] = {}
+        subdomain = url.subdomain or NO_SUBDOMAIN
+        if subdomain not in self._db[url.domain]:
+            self._db[url.domain][subdomain] = []
+        if url.path not in self._db[url.domain][subdomain]:
+            insort(self._db[url.domain][subdomain], url.path)
+            LOG.debug("added: %s", url)
+            return True
+        return False
 
     @property
     def domains(self) -> Generator[str]:
@@ -233,7 +243,8 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
         "-l",
         "--url-list",
         type=Path,
-        help="File containing line separated list of URLs.",
+        help="A .yml file URL database or a .txt file containing line separated list"
+        "of URLs.",
     )
     group.add_argument("-r", "--remove", help="Remove single URL.")
     group.add_argument("-u", "--url", help="Add single URL.")
@@ -253,6 +264,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     init_logging(args.log_level, args.disable_logging)
 
+    # pylint: disable=too-many-nested-blocks
     try:
         # load data
         if args.url_db and args.url_db.is_file():
@@ -267,13 +279,23 @@ def main(argv: list[str] | None = None) -> int:
         # update data
         changed = False
         if args.url:
-            added = urls.add_url(args.url)
+            added = urls.add_str(args.url)
             if added is not None:
                 LOG.info("Added '%s'", added)
                 changed = True
         elif args.url_list:
             LOG.info("Scanning URL(s) in '%s'...", args.url_list)
-            added_count = urls.add_list(args.url_list)
+            if args.url_list.suffix.lower() == ".yml":
+                # attempt to load URLs from a YML file
+                merge_urls = UrlCollection.load_yml(args.url_list)
+                if merge_urls is not None:
+                    added_count = 0
+                    for entry in merge_urls:
+                        if urls.add_url(entry):
+                            added_count += 1
+            else:
+                # attempt to load a line separated list of URLs
+                added_count = urls.add_list(args.url_list)
             LOG.info("Added %s URL(s).", f"{added_count:,d}")
             changed = added_count > 0
         elif args.remove:
