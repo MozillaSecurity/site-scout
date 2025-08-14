@@ -404,9 +404,9 @@ def test_site_scout_run_launch_failed(mocker, tmp_path):
         # no urls to process
         ([], {}, False),
         # load urls
-        (["http://a.c/", "http://b.a.c/d"], {"a.c": {"*": ["/"], "b": ["/d"]}}, False),
+        (["http://a.c/", "http://b.a.c/d"], {"a.c": {"": ["/"], "b": ["/d"]}}, False),
         #
-        (["http://a.c/"], {"a.c": {"*": ["/"]}}, True),
+        (["http://a.c/"], {"a.c": {"": ["/"]}}, True),
     ],
 )
 def test_site_scout_load_dict(urls, input_data, omit_urls):
@@ -618,12 +618,14 @@ def test_site_scout_skip_remaining(mocker):
         ([], "Invalid data"),
         # valid
         ({"d": {"s": ["/"]}}, None),
+        # valid no subdomin
+        ({"d": {"": ["/"]}}, None),
         # empty domain name
         ({"": {"s": ["/"]}}, "Domain must be a string"),
+        # subdomain is not a string
+        ({"d": {None: ["/"]}}, "Subdomain must be a string"),
         # empty domain entry
         ({"d": {}}, "Invalid domain entry: 'd'"),
-        # empty subdomain name
-        ({"d": {"": ["/"]}}, "Subdomain must be a string"),
         # empty subdomain entry
         ({"d": {"s": []}}, "Invalid subdomain entry: 's' in 'd'"),
         # empty path entry

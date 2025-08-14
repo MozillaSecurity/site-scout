@@ -10,7 +10,7 @@ from pytest import raises
 from .url_collection import UrlCollection, main, parse_args
 
 BASIC_URL_DB = {
-    "d1": {"*": ["/", "/d1-path1"]},
+    "d1": {"": ["/", "/d1-path1"]},
     "d2": {
         "sd2-1": ["/sd2-path1"],
         "sd2-2": ["/"],

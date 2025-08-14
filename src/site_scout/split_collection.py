@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from .main import init_logging
-from .url import NO_SUBDOMAIN
 from .url_collection import UrlCollection
 
 if TYPE_CHECKING:
@@ -47,12 +46,11 @@ def split_collection(
         if url.domain not in current_batch:
             current_size += len(url.domain) + DOMAIN_OVERHEAD
             current_batch[url.domain] = {}
-        subdomain = url.subdomain or NO_SUBDOMAIN
-        if subdomain not in current_batch[url.domain]:
-            current_size += len(subdomain) + SUBDOMAIN_OVERHEAD
-            current_batch[url.domain][subdomain] = []
+        if url.subdomain not in current_batch[url.domain]:
+            current_size += len(url.subdomain) + SUBDOMAIN_OVERHEAD
+            current_batch[url.domain][url.subdomain] = []
         current_size += len(url.path) + PATH_OVERHEAD
-        current_batch[url.domain][subdomain].append(url.path)
+        current_batch[url.domain][url.subdomain].append(url.path)
         # output current batch of urls to a file
         if current_size >= size:
             file_num += 1

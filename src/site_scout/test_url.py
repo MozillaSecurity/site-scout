@@ -6,7 +6,7 @@
 
 from pytest import mark, raises
 
-from .url import NO_SUBDOMAIN, URL, URLParseError
+from .url import URL, URLParseError
 
 
 def test_url_str():
@@ -55,10 +55,6 @@ def test_url_create(domain, subdomain, path, scheme, expected):
         ("b_a.d", None, "/", "http", "Invalid domain 'b_a.d'"),
         # bad domain
         (".a.c", None, "/", "http", "Invalid domain '.a.c'"),
-        # bad subdomain
-        ("a.c", "", "/d", "http", "Empty subdomain"),
-        # bad subdomain
-        ("a.c", f"{NO_SUBDOMAIN}.foo", "/", "http", r"Invalid subdomain '\*.foo'"),
         # bad subdomain
         ("a.c", "$.foo", "/", "http", r"Invalid subdomain '\$.foo'"),
         # bad subdomain
@@ -143,7 +139,6 @@ def test_url_parse(url_str, expected):
         (".com", "Missing domain"),
         ("data:text/html,TEST", "Missing domain"),
         (".a.com", r"Invalid subdomain$"),
-        (f"http://{NO_SUBDOMAIN}.a.com/", "Special value used for subdomain"),
         ("test", "Missing suffix"),
         ("192.168.1.1", "Missing suffix"),
         ("about:config", "Missing suffix"),
