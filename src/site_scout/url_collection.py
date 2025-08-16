@@ -18,11 +18,12 @@ except ImportError:
 
 from .main import init_logging, load_yml
 from .url import URL, URLParseError
+from .url_db import UrlDBError
 
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-    from .site_scout import UrlDB
+    from .url_db import UrlDB
 
 LOG = getLogger(__name__)
 
@@ -51,7 +52,7 @@ class UrlCollection:
 
     def add_list(self, urls_file: Path) -> int:
         """Load a text file containing a line separated list of URLs and add them
-        to the collection of known URLs.
+        to the collection of URLs.
 
         Args:
             urls_file: File to load.
@@ -174,8 +175,11 @@ class UrlCollection:
         Returns:
             UrlCollection.
         """
-        data = next(load_yml(src, allow_empty=True), None)
-        return None if data is None else cls(data)
+        try:
+            return cls(load_yml(src))
+        except UrlDBError as exc:
+            LOG.warning("Load failure - %s (ignored: %s)", exc, src.resolve())
+        return None
 
     def save_yml(self, dst: Path) -> None:
         """Save UrlCollection to a YML file.

@@ -54,6 +54,10 @@ def test_url_collection_02(tmp_path):
     assert urls.add_list(txt)
     assert not urls.add_list(txt)
     assert len(urls) == 7
+    # load yml with invalid entry
+    yml = tmp_path / "urls.yml"
+    yml.write_text("{'a':[]}")
+    assert UrlCollection.load_yml(yml) is None
 
 
 def test_url_collection_count_entries():

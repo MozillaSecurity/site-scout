@@ -12,7 +12,7 @@ from .main import init_logging
 from .url_collection import UrlCollection
 
 if TYPE_CHECKING:
-    from .site_scout import UrlDB
+    from .url_db import UrlDB
 
 LOG = getLogger(__name__)
 

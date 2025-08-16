@@ -5,9 +5,10 @@
 from logging import NOTSET, disable
 
 from ffpuppet import BrowserTerminatedError
-from pytest import mark
+from pytest import mark, raises
 
 from .main import generate_prefs, load_jsonl, load_yml, main, scan_input
+from .url_db import UrlDBError
 
 
 @mark.parametrize(
@@ -62,6 +63,30 @@ def test_main_01(caplog, capsys, mocker, tmp_path, args):
 
 
 @mark.parametrize(
+    "yml_data",
+    [
+        # invalid yml data
+        "\0",
+        # invalid data in yml
+        "{'d':[]}",
+    ],
+)
+def test_main_load_yml_invalid(caplog, mocker, tmp_path, yml_data):
+    """test main()"""
+    ffp = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
+    ffp.return_value.is_healthy.return_value = False
+    fake_bin = tmp_path / "fake_browser_bin"
+    fake_bin.touch()
+    yml_file = tmp_path / "data.yml"
+    yml_file.write_text(yml_data)
+    assert main([str(fake_bin), "-i", str(yml_file)]) == 0
+    assert "Starting Site Scout..." in caplog.text
+    assert "Done." in caplog.text
+    assert "Running with logging disabled..." not in caplog.text
+    assert len(caplog.text.splitlines()) > 1
+
+
+@mark.parametrize(
     "exception, exit_code",
     [
         # user abort
@@ -86,24 +111,14 @@ def test_generate_prefs_01(tmp_path):
 def test_load_yml_simple(tmp_path):
     """test load_yml() with valid data"""
     (tmp_path / "sites.yml").write_text("{'d':{'s':['/']}}")
-    results = tuple(load_yml(tmp_path / "sites.yml"))
-    assert len(results) == 1
+    assert len(load_yml(tmp_path / "sites.yml")) == 1
 
 
-@mark.parametrize(
-    "data",
-    [
-        b"",
-        b"foo",
-        b"{-",
-        b"\0",
-        b"{}",
-    ],
-)
-def test_load_yml_invalid_data(tmp_path, data):
+def test_load_yml_invalid_data(tmp_path):
     """test load_yml() with invalid data"""
-    (tmp_path / "test.yml").write_bytes(data)
-    assert not any(load_yml(tmp_path / "test.yml"))
+    (tmp_path / "test.yml").write_text("\0")
+    with raises(UrlDBError, match="Invalid yml"):
+        load_yml(tmp_path / "test.yml")
 
 
 def test_load_jsonl_simple(tmp_path):
