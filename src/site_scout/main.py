@@ -3,6 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 from __future__ import annotations
 
+from contextlib import suppress
 from json import JSONDecodeError, loads
 from logging import DEBUG, basicConfig, disable, getLogger
 from pathlib import Path
@@ -23,7 +24,8 @@ from yaml.reader import ReaderError
 from yaml.scanner import ScannerError
 
 from .args import parse_args
-from .site_scout import SiteScout, UrlDB, verify_dict
+from .site_scout import SiteScout
+from .url_db import UrlDB, UrlDBError, verify_db
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterable
@@ -110,28 +112,22 @@ def load_jsonl(src: Path) -> Generator[tuple[str, str | None]]:
             LOG.error("Invalid data: '%s:%d' (%s)", src.resolve(), line_no, exc)
 
 
-def load_yml(src: Path, allow_empty: bool = False) -> Generator[UrlDB]:
+def load_yml(src: Path) -> UrlDB:
     """Load data from a yml file.
 
     Arguments:
         src: File to load data from.
-        allow_empty: Empty data set is valid if True.
 
-    Yields:
+    Returns:
         URL data.
     """
     LOG.debug("loading (yml) '%s'", src.resolve())
-    with src.open("r") as in_fp:
-        try:
-            data = load(in_fp, Loader=SafeLoader)
-        except (ParserError, ReaderError, ScannerError):
-            LOG.warning("Load failure - Invalid yml (ignored: %s)", src.resolve())
-            return
-    err_msg = verify_dict(data, allow_empty=allow_empty)
-    if err_msg:
-        LOG.warning("Load failure - %s (ignored: %s)", err_msg, src.resolve())
-    else:
-        yield data
+    with (
+        src.open("r") as in_fp,
+        suppress(ParserError, ReaderError, ScannerError),
+    ):
+        return verify_db(load(in_fp, Loader=SafeLoader))
+    raise UrlDBError("Invalid yml") from None
 
 
 def scan_input(src: Iterable[Path], suffix: str) -> Generator[Path]:
@@ -189,8 +185,10 @@ def main(argv: list[str] | None = None) -> int:
                     scout.load_str(in_url, alias=alias)
             # load yml files
             for src in scan_input(args.input, ".yml"):
-                for data in load_yml(src):
-                    scout.load_dict(data)
+                try:
+                    scout.load_db(load_yml(src))
+                except UrlDBError as exc:  # noqa: PERF203
+                    LOG.warning("Load failure - %s (ignored: %s)", exc, src.resolve())
             # load urls from command line
             for in_url in args.url:
                 scout.load_str(in_url)

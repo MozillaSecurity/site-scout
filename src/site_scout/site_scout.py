@@ -22,7 +22,7 @@ from random import shuffle
 from shutil import rmtree
 from tempfile import gettempdir
 from time import gmtime, perf_counter, sleep, strftime
-from typing import Any, NewType
+from typing import TYPE_CHECKING
 
 from ffpuppet import BrowserTimeoutError, Debugger, FFPuppet, LaunchError, Reason
 from ffpuppet.display import DisplayMode
@@ -31,13 +31,12 @@ from .explorer import PAGE_LOAD_FAILURES, Explorer, State
 from .reporter import FuzzManagerReporter
 from .url import URL, URLParseError
 
+if TYPE_CHECKING:
+    from .url_db import UrlDB
+
 LOG = getLogger(__name__)
 TMP_PATH = Path(gettempdir()) / "site-scout"
 TMP_PATH.mkdir(exist_ok=True, parents=True)
-
-
-# Note: Python 3.10+ use TypeAlias
-UrlDB = NewType("UrlDB", dict[str, dict[str, list[str]]])
 
 
 def trim(in_str: str, max_len: int) -> str:
@@ -415,8 +414,9 @@ class SiteScout:
                 ffp.clean_up()
         return success
 
-    def load_dict(self, data: UrlDB) -> None:
+    def load_db(self, data: UrlDB) -> None:
         """Load URLs from a UrlDB and add them to the queue.
+        NOTE: This should only be used with known valid URL data.
 
         Args:
             data: Dictionary containing URLs.
@@ -824,37 +824,3 @@ class SiteScout:
         LOG.info(
             "Visits complete: %d, results: %d", len(self._summaries), total_results
         )
-
-
-# pylint: disable=too-many-return-statements
-def verify_dict(data: Any, allow_empty: bool = False) -> str | None:
-    """Verify the structure of data.
-
-    Args:
-        data: Dictionary to check.
-        allow_empty: Empty data set is valid if True.
-
-    Return:
-        An error message is returned if a problem is found.
-    """
-    if not isinstance(data, dict):
-        return "Invalid data"
-    if not data and not allow_empty:
-        return "No data found"
-    # check domains
-    for domain, subdomains in data.items():
-        if not isinstance(domain, str) or not domain:
-            return "Domain must be a string"
-        if not isinstance(subdomains, dict) or not subdomains:
-            return f"Invalid domain entry: '{domain}'"
-        # check subdomains
-        for subdomain, paths in subdomains.items():
-            if not isinstance(subdomain, str):
-                return "Subdomain must be a string"
-            if not isinstance(paths, list) or not paths:
-                return f"Invalid subdomain entry: '{subdomain}' in '{domain}'"
-            # check paths
-            for path in paths:
-                if not isinstance(path, str) or not path.startswith("/"):
-                    return "Path must be a string starting with '/'"
-    return None

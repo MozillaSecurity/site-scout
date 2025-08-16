@@ -9,7 +9,7 @@ from ffpuppet import BrowserTerminatedError, LaunchError, Reason
 from pytest import mark, raises
 
 from .explorer import State
-from .site_scout import _LOAD_AVG, SiteScout, Status, Visit, verify_dict
+from .site_scout import _LOAD_AVG, SiteScout, Status, Visit
 from .url import URL
 
 
@@ -409,11 +409,11 @@ def test_site_scout_run_launch_failed(mocker, tmp_path):
         (["http://a.c/"], {"a.c": {"": ["/"]}}, True),
     ],
 )
-def test_site_scout_load_dict(urls, input_data, omit_urls):
-    """test SiteScout.load_dict()"""
+def test_site_scout_load_db(urls, input_data, omit_urls):
+    """test SiteScout.load_db()"""
     with SiteScout(None, omit_urls=omit_urls) as scout:
         assert not scout._active
-        scout.load_dict(input_data)
+        scout.load_db(input_data)
         for url in scout._urls:
             assert str(url) in urls
         assert len(urls) == len(scout._urls)
@@ -453,7 +453,7 @@ def test_site_scout_load_collision():
         assert len(scout._urls) == 1
         scout.load_str(existing)
         assert len(scout._urls) == 1
-        scout.load_dict({"b.com": {"a": ["/"]}})
+        scout.load_db({"b.com": {"a": ["/"]}})
         assert len(scout._urls) == 1
 
 
@@ -607,31 +607,3 @@ def test_site_scout_skip_remaining(mocker):
         assert not scout._active
         assert not scout._urls
         assert active.cleanup.call_count == 1
-
-
-@mark.parametrize(
-    "data, msg",
-    [
-        # empty
-        ({}, "No data found"),
-        # not a dict
-        ([], "Invalid data"),
-        # valid
-        ({"d": {"s": ["/"]}}, None),
-        # valid no subdomin
-        ({"d": {"": ["/"]}}, None),
-        # empty domain name
-        ({"": {"s": ["/"]}}, "Domain must be a string"),
-        # subdomain is not a string
-        ({"d": {None: ["/"]}}, "Subdomain must be a string"),
-        # empty domain entry
-        ({"d": {}}, "Invalid domain entry: 'd'"),
-        # empty subdomain entry
-        ({"d": {"s": []}}, "Invalid subdomain entry: 's' in 'd'"),
-        # empty path entry
-        ({"d": {"s": [""]}}, "Path must be a string starting with '/'"),
-    ],
-)
-def test_verify_dict(data, msg):
-    """test verify_dict()"""
-    assert verify_dict(data) == msg
