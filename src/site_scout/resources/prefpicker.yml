@@ -115,10 +115,13 @@ pref:
       default:
       - ''
   # sites with lots of ads or third party content can spawn a lot of processes
-  # randomly force disable fission to help prevent OOMs
+  # randomly force disable fission 80% of runs to prevent OOMs
   fission.autostart:
     variants:
       default:
+      - false
+      - false
+      - false
       - false
       - null
   # normally only enabled on devices with touchscreens (emilio)
