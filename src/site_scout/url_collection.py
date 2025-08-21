@@ -309,15 +309,15 @@ def main(argv: list[str] | None = None) -> int:
 
         # show current list of URLs
         if args.display_list:
-            LOG.info("Known URLs: %s", f"{len(urls):,d}")
-            for count, entry in enumerate(urls, start=1):
-                LOG.info("%04d: %s", count, entry)
+            LOG.info("Known URLs:")
+            for entry in urls:
+                LOG.info("> %s", entry)
 
         # show unparsable input
         if urls.unparsable:
             LOG.warning("Unparsable entries: %s", f"{len(urls.unparsable):,d}")
             for unparsable in urls.unparsable:
-                LOG.info("- '%s'", unparsable)
+                LOG.info("> '%s'", unparsable)
 
         # largest domains
         if args.domain_entries > 0:
@@ -325,7 +325,7 @@ def main(argv: list[str] | None = None) -> int:
             for domain, count in sorted(
                 urls.count_entries().items(), key=lambda kv: kv[1], reverse=True
             )[: args.domain_entries]:
-                LOG.info("- %3d '%s'", count, domain)
+                LOG.info("> %d '%s'", count, domain)
 
         # show summary
         try:
