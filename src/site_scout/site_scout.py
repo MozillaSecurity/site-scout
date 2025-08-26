@@ -266,13 +266,11 @@ class SiteScout:
     __slots__ = (
         "_active",
         "_binary",
-        "_cert_files",
         "_complete",
         "_coverage",
         "_debugger",
         "_display_mode",
         "_explore",
-        "_extension",
         "_fuzzmanager",
         "_launch_failure_limit",
         "_launch_failures",
@@ -297,8 +295,6 @@ class SiteScout:
         launch_failure_limit: int = 3,
         log_limit: int = 0,
         memory_limit: int = 0,
-        extension: list[Path] | None = None,
-        cert_files: list[Path] | None = None,
         explore: str | None = None,
         fuzzmanager: bool = False,
         coverage: bool = False,
@@ -311,12 +307,10 @@ class SiteScout:
         self._urls: list[URL] = []
         # browser related
         self._binary = binary
-        self._cert_files = cert_files
         self._coverage = coverage
         self._debugger = debugger
         self._display_mode = display_mode
         self._explore = ExplorerMode[explore.upper()] if explore else None
-        self._extension = extension
         self._launch_failure_limit = launch_failure_limit
         # consecutive launch failures
         self._launch_failures = 0
@@ -379,8 +373,6 @@ class SiteScout:
                 marionette=0 if self._explore else None,
                 memory_limit=self._memory_limit,
                 prefs_js=self._prefs,
-                extension=self._extension,
-                cert_files=self._cert_files,
             )
             explorer: Explorer | None = None
             if self._explore:
