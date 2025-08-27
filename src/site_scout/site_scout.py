@@ -275,7 +275,6 @@ class SiteScout:
         "_launch_failure_limit",
         "_launch_failures",
         "_launch_timeout",
-        "_log_limit",
         "_memory_limit",
         "_omit_urls",
         "_prefs",
@@ -293,7 +292,6 @@ class SiteScout:
         display_mode: str = "default",
         launch_timeout: int = 180,
         launch_failure_limit: int = 3,
-        log_limit: int = 0,
         memory_limit: int = 0,
         explore: str | None = None,
         fuzzmanager: bool = False,
@@ -315,7 +313,6 @@ class SiteScout:
         # consecutive launch failures
         self._launch_failures = 0
         self._launch_timeout = launch_timeout
-        self._log_limit = log_limit
         self._memory_limit = memory_limit
         self._omit_urls = omit_urls
         self._prefs = prefs_js
@@ -369,7 +366,6 @@ class SiteScout:
                 env_mod={"MOZ_CRASHREPORTER_SHUTDOWN": "1"},
                 location=None if self._explore else str(url),
                 launch_timeout=self._launch_timeout,
-                log_limit=self._log_limit,
                 marionette=0 if self._explore else None,
                 memory_limit=self._memory_limit,
                 prefs_js=self._prefs,

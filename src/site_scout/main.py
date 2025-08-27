@@ -169,7 +169,6 @@ def main(argv: list[str] | None = None) -> int:
             debugger=args.debugger,
             display_mode=args.display,
             launch_timeout=args.launch_timeout,
-            log_limit=args.log_limit,
             memory_limit=args.memory_limit,
             fuzzmanager=args.fuzzmanager,
             coverage=args.coverage,

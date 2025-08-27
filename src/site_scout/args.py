@@ -101,12 +101,6 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
         help="Configure console output (default: %(default)s).",
     )
     parser.add_argument(
-        "--log-limit",
-        type=int,
-        default=0,
-        help="Browser log file size limit in MBs (default: no limit).",
-    )
-    parser.add_argument(
         "--memory-limit",
         type=int,
         default=0,
@@ -233,10 +227,6 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
         parser.error("--jobs must be >= 1")
 
     args.log_level = level_map[args.log_level]
-
-    if args.log_limit < 0:
-        parser.error("--log-limit must be >= 0")
-    args.log_limit *= 1_048_576
 
     if args.memory_limit < 0:
         parser.error("--memory-limit must be >= 0")
