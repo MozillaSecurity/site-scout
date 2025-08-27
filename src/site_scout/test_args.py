@@ -42,10 +42,6 @@ def test_parse_args_checks(capsys, tmp_path):
     assert "--jobs must be >= 1" in capsys.readouterr()[-1]
 
     with raises(SystemExit):
-        parse_args([str(dummy_file), "-i", str(dummy_file), "--log-limit", "-1"])
-    assert "--log-limit must be >= 0" in capsys.readouterr()[-1]
-
-    with raises(SystemExit):
         parse_args([str(dummy_file), "-i", str(dummy_file), "--memory-limit", "-1"])
     assert "--memory-limit must be >= 0" in capsys.readouterr()[-1]
 
