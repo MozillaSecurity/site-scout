@@ -26,8 +26,8 @@ from .url_db import UrlDBError
 )
 def test_main_01(caplog, capsys, mocker, tmp_path, args):
     """test main()"""
-    ffp = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
-    ffp.return_value.is_healthy.return_value = False
+    browser = mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
+    browser.return_value.is_healthy.return_value = False
     fake_bin = tmp_path / "fake_browser_bin"
     fake_bin.touch()
     default_args = [str(fake_bin)]
@@ -73,8 +73,8 @@ def test_main_01(caplog, capsys, mocker, tmp_path, args):
 )
 def test_main_load_yml_invalid(caplog, mocker, tmp_path, yml_data):
     """test main()"""
-    ffp = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
-    ffp.return_value.is_healthy.return_value = False
+    browser = mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
+    browser.return_value.is_healthy.return_value = False
     fake_bin = tmp_path / "fake_browser_bin"
     fake_bin.touch()
     yml_file = tmp_path / "data.yml"

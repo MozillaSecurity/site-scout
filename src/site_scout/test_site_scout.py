@@ -5,10 +5,10 @@
 # pylint: disable=protected-access
 from itertools import chain, count, cycle
 
-from ffpuppet import BrowserTerminatedError, LaunchError, Reason
-from pytest import mark, raises
+from pytest import mark
 
-from .explorer import State
+from .browser_wrapper import BrowserArgs, BrowserState
+from .explorer import Explorer, State
 from .site_scout import _LOAD_AVG, SiteScout, Status, Visit
 from .url import URL
 
@@ -18,16 +18,18 @@ from .url import URL
 def test_visit_basic(mocker, explore, alias):
     """test Visit"""
     exp = mocker.patch("site_scout.site_scout.Explorer", autospec=True).return_value
-    puppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True).return_value
+    browser = mocker.patch(
+        "site_scout.site_scout.FirefoxWrapper", autospec=True
+    ).return_value
     url = URL("foo")
     if alias is not None:
         url.alias = alias
-    visit = Visit(puppet, url, explorer=exp if explore else None)
+    visit = Visit(browser, url, explorer=exp if explore else None)
     assert visit.is_active()
     assert visit.duration() != visit.duration()
-    assert visit.puppet == puppet
-    assert puppet.close.call_count == 0
-    assert puppet.clean_up.call_count == 0
+    assert visit.browser == browser
+    assert browser.close.call_count == 0
+    assert browser.cleanup.call_count == 0
     if explore:
         assert visit.explorer == exp
         assert exp.close.call_count == 0
@@ -36,8 +38,8 @@ def test_visit_basic(mocker, explore, alias):
     visit.close()
     assert not visit.is_active()
     assert visit.duration() == visit.duration()
-    assert puppet.close.call_count == 1
-    assert puppet.clean_up.call_count == 0
+    assert browser.close.call_count == 1
+    assert browser.cleanup.call_count == 0
     summary = visit.summary()
     if explore:
         assert exp.close.call_count == 1
@@ -58,24 +60,25 @@ def test_visit_basic(mocker, explore, alias):
     else:
         assert summary.identifier == alias
     visit.cleanup()
-    assert puppet.close.call_count == 1
-    assert puppet.clean_up.call_count == 1
+    assert browser.close.call_count == 1
+    assert browser.cleanup.call_count == 1
     if explore:
         assert exp.close.call_count == 1
 
 
 @mark.parametrize("explore", [None, "all"])
-def test_site_scout_launch(mocker, explore):
+def test_site_scout_launch(mocker, explore, tmp_path):
     """test SiteScout._launch()"""
     mocker.patch("site_scout.site_scout.Explorer", autospec=True)
-    mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
-    with SiteScout(None, explore=explore) as scout:
+    mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
+    args = BrowserArgs(tmp_path / "bin", 10, 10)
+    with SiteScout(args, explore=explore) as scout:
         assert not scout._active
         assert scout._launch(URL("someurl"))
         assert scout._active
         assert scout._active[0].is_active()
         assert scout._active[0].idle_timestamp is None
-        assert scout._active[0].puppet is not None
+        assert scout._active[0].browser is not None
         assert str(scout._active[0].url) == "http://someurl/"
         if explore:
             assert scout._active[0].explorer is not None
@@ -83,21 +86,18 @@ def test_site_scout_launch(mocker, explore):
             assert scout._active[0].explorer is None
 
 
-@mark.parametrize("max_failures", [1, 2])
-def test_site_scout_launch_failues(mocker, tmp_path, max_failures):
-    """test SiteScout._launch() failures"""
-    ffp = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
-    ffp.return_value.launch.side_effect = BrowserTerminatedError()
-    with SiteScout(None) as scout:
-        scout._launch_failure_limit = max_failures
-        if max_failures > 1:
-            assert not scout._launch("http://a/")
-            assert ffp.return_value.save_logs.call_count == 0
-        else:
-            with raises(BrowserTerminatedError):
-                scout._launch("http://a/", log_path=tmp_path)
-            assert ffp.return_value.save_logs.call_count == 1
-        assert ffp.return_value.clean_up.call_count == 1
+def test_site_scout_launch_failure(mocker, tmp_path):
+    """test SiteScout._launch() failed"""
+    mocker.patch("site_scout.site_scout.Explorer", autospec=True)
+    browser = mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
+    browser.return_value.launch.return_value = False
+    args = BrowserArgs(tmp_path / "bin", 10, 10)
+    with SiteScout(args) as scout:
+        assert not scout._launch(URL("someurl"))
+        assert browser.return_value.launch.call_count == 1
+        assert browser.return_value.cleanup.call_count == 1
+        assert scout._launch_failures == 1
+        assert not scout._active
 
 
 def test_site_scout_close(mocker):
@@ -115,35 +115,31 @@ def test_site_scout_close(mocker):
 
 
 @mark.parametrize(
-    "urls, is_healthy, timeout, cpu_usage, idle, active, explore",
+    "urls, is_healthy, timeout, active, explore",
     [
         # no urls to process
-        ([], True, False, None, False, 0, None),
+        ([], True, False, 0, None),
         # one active
-        ([URL("foo")], True, False, None, False, 1, None),
+        ([URL("foo")], True, False, 1, None),
         # multiple active
-        ([URL("foo"), URL("bar")], True, False, None, False, 2, None),
+        ([URL("foo"), URL("bar")], True, False, 2, None),
         # one complete
-        ([URL("foo")], False, False, None, False, 0, None),
+        ([URL("foo")], False, False, 0, None),
         # timeout
-        ([URL("foo")], True, True, None, False, 0, None),
-        # idle
-        ([URL("foo")], True, False, 0, False, 0, None),
-        # reset idle
-        ([URL("foo")], True, False, 100, True, 1, None),
-        # explorer fails to close browser
-        ([URL("foo")], True, False, None, False, 0, "all"),
+        ([URL("foo")], True, True, 0, None),
+        # explorer closes before browser
+        ([URL("foo")], True, False, 0, "all"),
     ],
 )
-def test_site_scout_process_active(
-    mocker, urls, is_healthy, timeout, cpu_usage, idle, active, explore
-):
+def test_site_scout_process_active(mocker, urls, is_healthy, timeout, active, explore):
     """test SiteScout._process_active()"""
-    explorer = mocker.patch("site_scout.site_scout.Explorer", autospec=True)
-    explorer.return_value.is_running.return_value = False
-    ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
-    ffpuppet.return_value.is_healthy.return_value = is_healthy
-    ffpuppet.return_value.cpu_usage.return_value = [(None, cpu_usage)]
+    explorer = mocker.patch(
+        "site_scout.site_scout.Explorer", autospec=True
+    ).return_value
+    explorer.is_running.return_value = False
+    browser = mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
+    browser.return_value.is_healthy.return_value = is_healthy
+    browser.return_value.create_explorer.return_value = explorer
     with SiteScout(None, coverage=True, explore=explore) as scout:
         assert not scout._active
         assert scout._coverage
@@ -154,65 +150,93 @@ def test_site_scout_process_active(
         if timeout:
             for visit in scout._active:
                 visit._start_time = 0
-        if cpu_usage is not None:
-            for visit in scout._active:
-                visit._start_time -= 10
-                if idle:
-                    visit.idle_timestamp = visit._start_time
         # run and verify
-        scout._process_active(30, idle_usage=10, idle_wait=0, min_visit=5)
+        scout._process_active(30, idle_usage=0)
         assert len(scout._active) == active
         assert active or total_active == len(scout._complete)
         for entry in scout._active:
             assert entry.is_active()
-            assert not entry.puppet.close.call_count
+            assert not entry.browser.close.call_count
         for entry in scout._complete:
             assert not entry.is_active()
-            assert entry.puppet.close.call_count
+            assert entry.browser.close.call_count
             if is_healthy and not explore:
-                assert entry.puppet.dump_coverage.call_count
+                assert entry.browser.dump_coverage.call_count
             else:
-                assert not entry.puppet.dump_coverage.call_count
+                assert not entry.browser.dump_coverage.call_count
+
+
+def test_site_scout_process_active_idle(mocker):
+    """test SiteScout._process_active() idle"""
+    mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
+    mocker.patch("site_scout.site_scout.perf_counter", side_effect=count())
+    with SiteScout(None, coverage=True, explore=None) as scout:
+        assert not scout._active
+        scout._launch(URL("foo"))
+        assert len(scout._active) == 1
+        assert not scout._complete
+        scout._active[0]._start_time = 0
+        scout._active[0].browser.is_idle.return_value = True
+        # set idle
+        assert scout._active[0].idle_timestamp is None
+        scout._process_active(30, idle_usage=10, idle_wait=10, min_visit=1)
+        assert scout._active
+        assert scout._active[0].idle_timestamp is not None
+        # reset idle
+        scout._active[0].browser.is_idle.return_value = False
+        scout._process_active(30, idle_usage=10, idle_wait=10, min_visit=1)
+        assert scout._active
+        assert scout._active[0].idle_timestamp is None
+        # set idle
+        scout._active[0].browser.is_idle.return_value = True
+        scout._process_active(30, idle_usage=10, idle_wait=10, min_visit=1)
+        assert scout._active
+        assert scout._active[0].idle_timestamp is not None
+        # idle
+        scout._process_active(30, idle_usage=10, idle_wait=1, min_visit=1)
+        assert not scout._active
+        assert len(scout._complete) == 1
+        assert scout._complete[0].idle_timestamp is not None
 
 
 @mark.parametrize(
-    "urls, reason, reports",
+    "urls, statue, reports",
     [
         # no urls to process
         ([], None, 0),
         # interesting result
-        ([URL("foo")], Reason.ALERT, 1),
+        ([URL("foo")], BrowserState.RESULT, 1),
         # multiple interesting results
-        ([URL("foo"), URL("bar")], Reason.ALERT, 2),
+        ([URL("foo"), URL("bar")], BrowserState.RESULT, 2),
         # uninteresting result
-        ([URL("foo")], Reason.CLOSED, 0),
+        ([URL("foo")], BrowserState.CLOSED, 0),
         # uninteresting result
-        ([URL("foo")], Reason.EXITED, 0),
-        # interesting result
-        ([URL("foo")], Reason.WORKER, 1),
+        ([URL("foo")], BrowserState.EXITED, 0),
     ],
 )
-def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
+def test_site_scout_process_complete(mocker, tmp_path, urls, statue, reports):
     """test SiteScout._process_complete()"""
 
     # pylint: disable=unused-argument
-    def save_logs(dst_path, logs_only=False):
+    def save_report(dst_path, logs_only=False):
         dst_path.mkdir(exist_ok=True)
 
-    explorer = mocker.patch("site_scout.site_scout.Explorer", autospec=True)
-    explorer.return_value.status.state = State.CLOSED
-    explorer.return_value.status.url_loaded = ""
-    ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
-    ffpuppet.return_value.is_healthy.return_value = False
-    ffpuppet.return_value.reason = reason
-    ffpuppet.return_value.save_logs.side_effect = save_logs
+    explorer = mocker.Mock(spec_set=Explorer)
+    explorer.status.state = State.CLOSED
+    explorer.status.url_loaded = ""
+    browser = mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
+    browser.return_value.is_healthy.return_value = False
+    browser.return_value.state.return_value = statue
+    browser.return_value.save_report.side_effect = save_report
+    browser.return_value.create_explorer.return_value = explorer
     getenv = mocker.patch("site_scout.site_scout.getenv", autospec=True)
     getenv.return_value = "collection-name"
     prefs = tmp_path / "prefs.js"
     prefs.touch()
     report_dst = tmp_path / "reports"
     report_dst.mkdir()
-    with SiteScout(None, prefs_js=prefs, explore="all") as scout:
+    args = BrowserArgs(tmp_path / "bin", 10, 10, prefs_file=prefs)
+    with SiteScout(args, explore="all") as scout:
         assert not scout._active
         for url in urls:
             scout._launch(url)
@@ -224,38 +248,39 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
         assert scout._process_complete(report_dst) == reports
         assert len(scout._summaries) == len(urls)
     assert sum(1 for _ in report_dst.iterdir()) == reports
-    assert explorer.return_value.close.call_count == len(urls)
+    assert explorer.close.call_count == len(urls)
 
 
 @mark.parametrize(
-    "reason, explore, state",
+    "browser_state, explore, explorer_state",
     [
-        (Reason.ALERT, "all", State.EXPLORING),
-        (Reason.EXITED, "all", State.CLOSED),
-        (Reason.CLOSED, "all", State.LOAD_FAILURE),
-        (Reason.CLOSED, "all", State.NOT_FOUND),
-        (Reason.CLOSED, "all", State.UNHANDLED_ERROR),
-        (Reason.EXITED, None, None),
+        (BrowserState.RESULT, "all", State.EXPLORING),
+        (BrowserState.EXITED, "all", State.CLOSED),
+        (BrowserState.CLOSED, "all", State.LOAD_FAILURE),
+        (BrowserState.CLOSED, "all", State.NOT_FOUND),
+        (BrowserState.CLOSED, "all", State.UNHANDLED_ERROR),
+        (BrowserState.EXITED, None, None),
     ],
 )
 def test_site_scout_process_complete_summaries(
-    mocker, tmp_path, reason, explore, state
+    mocker, tmp_path, browser_state, explore, explorer_state
 ):
     """test SiteScout._process_complete() summaries"""
 
     # pylint: disable=unused-argument
-    def save_logs(dst_path, logs_only=False):
+    def save_report(dst_path, logs_only=False):
         dst_path.mkdir(exist_ok=True)
 
-    explorer = mocker.patch("site_scout.site_scout.Explorer", autospec=True)
-    explorer.return_value.status.load_duration = 1.0
-    explorer.return_value.status.explore_duration = 2.0
-    explorer.return_value.status.state = state
-    explorer.return_value.status.url_loaded = "foo"
-    ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
-    ffpuppet.return_value.is_healthy.return_value = False
-    ffpuppet.return_value.reason = reason
-    ffpuppet.return_value.save_logs.side_effect = save_logs
+    explorer = mocker.Mock(spec_set=Explorer)
+    explorer.status.load_duration = 1.0
+    explorer.status.explore_duration = 2.0
+    explorer.status.state = explorer_state
+    explorer.status.url_loaded = "foo"
+    browser = mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
+    browser.return_value.is_healthy.return_value = False
+    browser.return_value.state.return_value = browser_state
+    browser.return_value.save_report.side_effect = save_report
+    browser.return_value.create_explorer.return_value = explorer
 
     with SiteScout(None, explore=explore) as scout:
         assert not scout._active
@@ -269,11 +294,13 @@ def test_site_scout_process_complete_summaries(
         assert len(scout._summaries) == 1
         assert scout._summaries[0].duration > 0
         assert scout._summaries[0].identifier == "http://foo/"
-        assert scout._summaries[0].force_closed == (reason == Reason.CLOSED)
-        assert scout._summaries[0].has_result == (reason == Reason.ALERT)
+        assert scout._summaries[0].force_closed == (
+            browser_state == BrowserState.CLOSED
+        )
+        assert scout._summaries[0].has_result == (browser_state == BrowserState.RESULT)
         if explore is not None:
-            assert explorer.return_value.close.call_count == 1
-            assert scout._summaries[0].state == state
+            assert explorer.close.call_count == 1
+            assert scout._summaries[0].state == explorer_state
             assert scout._summaries[0].load_duration == 1.0
             assert scout._summaries[0].explore_duration == 2.0
         else:
@@ -283,42 +310,72 @@ def test_site_scout_process_complete_summaries(
 
 
 @mark.parametrize(
-    "urls, reason, jobs, reports, use_fm, status, explore, result_limit, runtime_limit",
+    "urls, state, jobs, reports, use_fm, status, explore, result_limit, runtime_limit",
     [
         # no urls to process
         ([], None, 1, 0, False, True, None, 0, 0),
         # interesting result
-        ([URL("foo")], Reason.ALERT, 1, 1, False, False, None, 0, 0),
+        ([URL("foo")], BrowserState.RESULT, 1, 1, False, False, None, 0, 0),
         # job > work
-        ([URL("foo")], Reason.ALERT, 2, 1, False, False, None, 0, 0),
+        ([URL("foo")], BrowserState.RESULT, 2, 1, False, False, None, 0, 0),
         # multiple interesting results
-        ([URL("foo"), URL("bar")], Reason.ALERT, 1, 2, False, False, None, 0, 0),
+        (
+            [URL("foo"), URL("bar")],
+            BrowserState.RESULT,
+            1,
+            2,
+            False,
+            False,
+            None,
+            0,
+            0,
+        ),
         # work > jobs
         (
             [URL("1"), URL("2"), URL("3"), URL("4")],
-            Reason.ALERT,
+            BrowserState.RESULT,
             2,
             4,
             False,
             False,
-            False,
+            None,
             0,
             0,
         ),
         # uninteresting result
-        ([URL("foo")], Reason.CLOSED, 1, 0, False, False, None, 0, 0),
+        ([URL("foo")], BrowserState.CLOSED, 1, 0, False, False, None, 0, 0),
         # domain rate limit
-        ([URL("foo"), URL("foo")], Reason.CLOSED, 1, 0, False, False, None, 0, 0),
+        (
+            [URL("foo"), URL("foo")],
+            BrowserState.CLOSED,
+            1,
+            0,
+            False,
+            False,
+            None,
+            0,
+            0,
+        ),
         # timeout
         ([URL("foo")], None, 1, 0, False, False, None, 0, 0),
         # report via FuzzManager
-        ([URL("foo")], Reason.ALERT, 1, 1, True, False, None, 0, 0),
+        ([URL("foo")], BrowserState.RESULT, 1, 1, True, False, None, 0, 0),
         # report via FuzzManager (explore)
-        ([URL("foo")], Reason.ALERT, 1, 1, True, False, "all", 0, 0),
+        ([URL("foo")], BrowserState.RESULT, 1, 1, True, False, "all", 0, 0),
         # report status
-        ([URL("foo")], Reason.ALERT, 1, 1, False, True, None, 0, 0),
+        ([URL("foo")], BrowserState.RESULT, 1, 1, False, True, None, 0, 0),
         # hit result limit
-        ([URL("foo"), URL("bar")], Reason.ALERT, 1, 1, False, False, None, 1, 0),
+        (
+            [URL("foo"), URL("bar")],
+            BrowserState.RESULT,
+            1,
+            1,
+            False,
+            False,
+            None,
+            1,
+            0,
+        ),
         # hit runtime limit
         ([URL("foo"), URL("bar")], None, 1, 0, False, False, None, 0, 1),
         # explore
@@ -329,7 +386,7 @@ def test_site_scout_run(
     mocker,
     tmp_path,
     urls,
-    reason,
+    state,
     jobs,
     reports,
     use_fm,
@@ -341,33 +398,32 @@ def test_site_scout_run(
     """test SiteScout.run()"""
 
     # pylint: disable=unused-argument
-    def save_logs(dst_path, logs_only=False):
+    def save_report(dst_path, logs_only=False):
         dst_path.mkdir(exist_ok=True)
 
     mocker.patch("site_scout.site_scout.dump", autospec=True)
-    mocker.patch("site_scout.site_scout.Explorer", autospec=True)
     mocker.patch("site_scout.site_scout.sleep", autospec=True)
     mocker.patch("site_scout.site_scout.perf_counter", side_effect=count())
-    ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
+    browser = mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
     reporter = mocker.patch("site_scout.site_scout.FuzzManagerReporter", autospec=True)
     reporter.return_value.submit.return_value = (1337, "[@ sig]")
-    if reason:
+    if state:
         # only first pass is running
-        ffpuppet.return_value.is_healthy.side_effect = chain([True], cycle([False]))
-    ffpuppet.return_value.reason = reason
-    ffpuppet.return_value.save_logs.side_effect = save_logs
+        browser.return_value.is_healthy.side_effect = chain([True], cycle([False]))
+    browser.return_value.state.return_value = state
+    browser.return_value.save_report.side_effect = save_report
 
     report_dst = tmp_path / "reports"
     report_dst.mkdir()
-    status_file = tmp_path / "status.txt" if status else None
-    with SiteScout(None, explore=explore, fuzzmanager=use_fm) as scout:
+    args = BrowserArgs(tmp_path / "bin", 10, 10)
+    with SiteScout(args, explore=explore, fuzzmanager=use_fm) as scout:
         assert not scout._active
         scout._urls = urls
         scout.run(
             report_dst,
             10,
             instance_limit=jobs,
-            status_report=status_file,
+            status_report=tmp_path / "status.txt" if status else None,
             result_limit=result_limit,
             runtime_limit=runtime_limit,
         )
@@ -385,17 +441,17 @@ def test_site_scout_run_launch_failed(mocker, tmp_path):
     """test SiteScout.run() launch failed"""
     mocker.patch("site_scout.site_scout.sleep", autospec=True)
     mocker.patch("site_scout.site_scout.perf_counter", side_effect=count())
-    ffpuppet = mocker.patch("site_scout.site_scout.FFPuppet", autospec=True)
+    browser = mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
     # one launch failure and one successful launch
-    ffpuppet.return_value.launch.side_effect = (LaunchError("foo"), None)
+    browser.return_value.launch.side_effect = (False, True)
     with SiteScout(None, explore=False) as scout:
         assert not scout._active
         scout._urls = [URL("test")]
         scout.run(tmp_path, 10)
         # failed launch attempts should re-queue the URL
         assert scout._summaries
-    assert ffpuppet.return_value.launch.call_count == 2
-    assert ffpuppet.return_value.clean_up.call_count == 2
+    assert browser.return_value.launch.call_count == 2
+    assert browser.return_value.cleanup.call_count == 2
 
 
 @mark.parametrize(

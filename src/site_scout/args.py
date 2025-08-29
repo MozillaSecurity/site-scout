@@ -11,8 +11,6 @@ from pathlib import Path
 from platform import system
 from shutil import which
 
-from ffpuppet import Debugger
-
 try:
     __version__ = version("site-scout")
 except PackageNotFoundError:  # pragma: no cover
@@ -168,7 +166,7 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
         help="Number of times to visit each URL (default: %(default)s).",
     )
 
-    parser.set_defaults(coverage=False, debugger=Debugger.NONE)
+    parser.set_defaults(coverage=False, debugger=None)
     if system() == "Linux":
         parser.add_argument(
             "--coverage",
@@ -179,14 +177,14 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
         dbg_group.add_argument(
             "--pernosco",
             action="store_const",
-            const=Debugger.PERNOSCO,
+            const="PERNOSCO",
             dest="debugger",
             help="Use rr. Trace intended to be used with Pernosco.",
         )
         dbg_group.add_argument(
             "--rr",
             action="store_const",
-            const=Debugger.RR,
+            const="RR",
             dest="debugger",
             help="Use rr.",
         )
@@ -194,7 +192,7 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
     args = parser.parse_args(argv)
 
     if args.time_limit is None:
-        if args.debugger != Debugger.NONE:
+        if args.debugger is not None:
             args.time_limit = TIME_LIMIT_DEBUG
         elif args.explore:
             args.time_limit = TIME_LIMIT_EXPLORE
@@ -212,7 +210,7 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
         if args.jobs > 1:
             parser.error("Parallel jobs not supported with --coverage")
 
-    if args.debugger in (Debugger.PERNOSCO, Debugger.RR):
+    if args.debugger in ("PERNOSCO", "RR"):
         if args.fuzzmanager:
             parser.error("rr not supported with --fuzzmanager")
         # rr is only supported on Linux
