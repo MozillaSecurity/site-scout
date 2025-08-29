@@ -24,14 +24,14 @@ from tempfile import gettempdir
 from time import gmtime, perf_counter, sleep, strftime
 from typing import TYPE_CHECKING
 
-from ffpuppet import BrowserTimeoutError, Debugger, FFPuppet, LaunchError, Reason
-from ffpuppet.display import DisplayMode
-
+from .browser_wrapper import BrowserState
 from .explorer import PAGE_LOAD_FAILURES, Explorer, ExplorerMode, State
+from .firefox_wrapper import FirefoxWrapper
 from .reporter import FuzzManagerReporter
 from .url import URL, URLParseError
 
 if TYPE_CHECKING:
+    from .browser_wrapper import BrowserArgs, BrowserWrapper
     from .url_db import UrlDB
 
 LOG = getLogger(__name__)
@@ -157,18 +157,20 @@ class Visit:
     __slots__ = (
         "_end_time",
         "_start_time",
+        "browser",
         "explorer",
         "idle_timestamp",
-        "puppet",
         "url",
     )
 
-    def __init__(self, puppet: FFPuppet, url: URL, explorer: Explorer | None) -> None:
+    def __init__(
+        self, browser: BrowserWrapper, url: URL, explorer: Explorer | None
+    ) -> None:
         self._end_time: float | None = None
         self._start_time = perf_counter()
+        self.browser = browser
         self.explorer = explorer
         self.idle_timestamp: float | None = None
-        self.puppet = puppet
         self.url = url
 
     def cleanup(self) -> None:
@@ -181,7 +183,7 @@ class Visit:
             None.
         """
         self.close()
-        self.puppet.clean_up()
+        self.browser.cleanup()
 
     def close(self) -> None:
         """Close browser and explorer if needed.
@@ -195,7 +197,7 @@ class Visit:
         if self._end_time is None:
             self._end_time = perf_counter()
             # close browser before closing explorer
-            self.puppet.close()
+            self.browser.close()
             if self.explorer is not None:
                 self.explorer.close()
 
@@ -224,15 +226,13 @@ class Visit:
             VisitSummary.
         """
         assert not self.is_active()
-        has_result = self.puppet.reason in frozenset((Reason.ALERT, Reason.WORKER))
-        force_closed = self.puppet.reason == Reason.CLOSED
         url_collection = getenv("URL_COLLECTION")
         if self.explorer is not None:
             return VisitSummary(
                 self.duration(),
                 self.url.alias or str(self.url),
-                force_closed,
-                has_result,
+                self.browser.state() == BrowserState.CLOSED,
+                self.browser.state() == BrowserState.RESULT,
                 explore_duration=self.explorer.status.explore_duration,
                 load_duration=self.explorer.status.load_duration,
                 state=self.explorer.status.state,
@@ -242,8 +242,8 @@ class Visit:
         return VisitSummary(
             self.duration(),
             self.url.alias or str(self.url),
-            force_closed,
-            has_result,
+            self.browser.state() == BrowserState.CLOSED,
+            self.browser.state() == BrowserState.RESULT,
             url_collection=url_collection,
         )
 
@@ -259,40 +259,27 @@ class Visit:
         return self._end_time is None
 
 
-# pylint: disable=too-many-instance-attributes
 class SiteScout:
     """SiteScout can visit a collection of URLs and report process failures."""
 
     __slots__ = (
         "_active",
-        "_binary",
+        "_browser_args",
         "_complete",
         "_coverage",
-        "_debugger",
-        "_display_mode",
         "_explore",
         "_fuzzmanager",
         "_launch_failure_limit",
         "_launch_failures",
-        "_launch_timeout",
-        "_memory_limit",
         "_omit_urls",
-        "_prefs",
-        "_profile",
         "_summaries",
         "_urls",
     )
 
     def __init__(
         self,
-        binary: Path,
-        profile: Path | None = None,
-        prefs_js: Path | None = None,
-        debugger: Debugger = Debugger.NONE,
-        display_mode: str = "default",
-        launch_timeout: int = 180,
+        browser_args: BrowserArgs,
         launch_failure_limit: int = 3,
-        memory_limit: int = 0,
         explore: str | None = None,
         fuzzmanager: bool = False,
         coverage: bool = False,
@@ -300,26 +287,21 @@ class SiteScout:
     ) -> None:
         assert launch_failure_limit > 0
         self._active: list[Visit] = []
+        self._browser_args = browser_args
         self._complete: list[Visit] = []
         self._summaries: list[VisitSummary] = []
         self._urls: list[URL] = []
-        # browser related
-        self._binary = binary
         self._coverage = coverage
-        self._debugger = debugger
-        self._display_mode = display_mode
         self._explore = ExplorerMode[explore.upper()] if explore else None
         self._launch_failure_limit = launch_failure_limit
         # consecutive launch failures
         self._launch_failures = 0
-        self._launch_timeout = launch_timeout
-        self._memory_limit = memory_limit
         self._omit_urls = omit_urls
-        self._prefs = prefs_js
-        self._profile = profile
         # reporter
         self._fuzzmanager: FuzzManagerReporter | None = (
-            FuzzManagerReporter(binary, working_path=TMP_PATH) if fuzzmanager else None
+            FuzzManagerReporter(browser_args.binary, working_path=TMP_PATH)
+            if fuzzmanager
+            else None
         )
 
     def __enter__(self) -> SiteScout:
@@ -353,55 +335,30 @@ class SiteScout:
         Returns:
             True if the browser was launched otherwise False.
         """
-        success = False
-        ffp = FFPuppet(
-            debugger=self._debugger,
-            display_mode=DisplayMode[self._display_mode.upper()],
-            use_profile=self._profile,
-            working_path=str(TMP_PATH),
-        )
-        try:
-            ffp.launch(
-                self._binary,
-                env_mod={"MOZ_CRASHREPORTER_SHUTDOWN": "1"},
-                location=None if self._explore else str(url),
-                launch_timeout=self._launch_timeout,
-                marionette=0 if self._explore else None,
-                memory_limit=self._memory_limit,
-                prefs_js=self._prefs,
-            )
-            explorer: Explorer | None = None
-            if self._explore:
-                assert ffp.marionette is not None
-                # this can raise RuntimeError
-                explorer = Explorer(
-                    self._binary,
-                    ffp.marionette,
-                    str(url),
-                    mode=self._explore,
-                    load_wait=60 if self._debugger == Debugger.NONE else 90,
-                    pause=10,
-                )
-            self._active.append(Visit(ffp, url, explorer=explorer))
-            self._launch_failures = 0
-            success = True
-        except LaunchError as exc:
+        browser = FirefoxWrapper(self._browser_args, TMP_PATH)
+        if not browser.launch(
+            str(url),
+            self._explore is not None,
+            log_path,
+            self._launch_failures >= self._launch_failure_limit,
+        ):
+            browser.cleanup()
             self._launch_failures += 1
-            is_failure = not isinstance(exc, BrowserTimeoutError)
-            LOG.warning("Browser launch %s...", "failure" if is_failure else "timeout")
-            if self._launch_failures >= self._launch_failure_limit:
-                # save failure
-                if is_failure and log_path is not None:
-                    ffp.close()
-                    dst = log_path / strftime("%Y%m%d-%H%M%S-launch-failure")
-                    ffp.save_logs(dst)
-                    LOG.warning("Logs saved '%s'", dst)
-                raise
-        finally:
-            # cleanup if launch was unsuccessful
-            if not success:
-                ffp.clean_up()
-        return success
+            return False
+
+        # launch succeeded
+        self._launch_failures = 0
+        if self._explore is not None:
+            explorer = browser.create_explorer(
+                url,
+                load_wait=60 if browser.debugger() else 90,
+                mode=self._explore,
+                pause=10,
+            )
+        else:
+            explorer = None
+        self._active.append(Visit(browser, url, explorer=explorer))
+        return True
 
     def load_db(self, data: UrlDB) -> None:
         """Load URLs from a UrlDB and add them to the queue.
@@ -494,7 +451,7 @@ class SiteScout:
         for index, visit in enumerate(self._active):
             # check if work is complete
             visit_runtime = visit.duration()
-            if not visit.puppet.is_healthy():
+            if not visit.browser.is_healthy():
                 visit.close()
                 complete.append(index)
             # check if explorer is complete
@@ -504,19 +461,19 @@ class SiteScout:
                 visit.explorer.close()
                 # check if browser closed or potentially crashed
                 if visit.explorer.status.state not in PAGE_LOAD_FAILURES:
-                    visit.puppet.wait(10 if self._debugger == Debugger.NONE else 30)
+                    visit.browser.wait(10 if visit.browser.debugger() else 30)
                 visit.close()
                 complete.append(index)
             elif visit_runtime >= time_limit:
                 LOG.debug("visit timeout (%s)", visit.url.uid[:6])
                 if self._coverage:
-                    visit.puppet.dump_coverage()
+                    visit.browser.dump_coverage()
                 visit.close()
                 complete.append(index)
             # check for idle browser instance
             elif idle_usage and visit_runtime >= min_visit:
                 # check all browser processes are below idle limit
-                if all(x[1] < idle_usage for x in visit.puppet.cpu_usage()):
+                if visit.browser.is_idle(idle_limit=idle_usage):
                     now = perf_counter()
                     if visit.idle_timestamp is None:
                         LOG.debug("set idle (%s)", visit.url.uid[:6])
@@ -524,7 +481,7 @@ class SiteScout:
                     if now - visit.idle_timestamp >= idle_wait:
                         LOG.debug("visit idle (%s)", visit.url.uid[:6])
                         if self._coverage:
-                            visit.puppet.dump_coverage()
+                            visit.browser.dump_coverage()
                         visit.close()
                         complete.append(index)
                 elif visit.idle_timestamp is not None:
@@ -557,16 +514,13 @@ class SiteScout:
             if summary.has_result:
                 # WARNING: START REPORTING/SAVING DATA
                 dst = log_path / strftime(f"%Y%m%d-%H%M%S-result-{visit.url.uid[:6]}")
-                visit.puppet.save_logs(dst)
+                visit.browser.save_report(dst)
                 results += 1
                 LOG.info(
                     "Result found visiting '%s' (%0.1fs)",
                     summary.identifier,
                     summary.duration,
                 )
-                # save prefs file
-                if self._prefs:
-                    (dst / "prefs.js").write_text(self._prefs.read_text())
                 # collect visit metadata
                 metadata = {
                     "duration": f"{summary.duration:0.1f}",

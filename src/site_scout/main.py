@@ -24,6 +24,7 @@ from yaml.reader import ReaderError
 from yaml.scanner import ScannerError
 
 from .args import parse_args
+from .browser_wrapper import BrowserArgs
 from .site_scout import SiteScout
 from .url_db import UrlDB, UrlDBError, verify_db
 
@@ -158,18 +159,21 @@ def main(argv: list[str] | None = None) -> int:
     try:
         # generate prefs.js file if one is not provided
         if args.prefs is None:
+            # TODO: move this to the wrapper
             args.prefs = generate_prefs()
             tmp_prefs = True
 
         LOG.info("Starting Site Scout...")
         with SiteScout(
-            args.binary.resolve(),
-            profile=args.profile,
-            prefs_js=args.prefs,
-            debugger=args.debugger,
-            display_mode=args.display,
-            launch_timeout=args.launch_timeout,
-            memory_limit=args.memory_limit,
+            BrowserArgs(
+                args.binary.resolve(),
+                args.launch_timeout,
+                args.memory_limit,
+                prefs_file=args.prefs,
+                profile=args.profile,
+                debugger=args.debugger,
+                display_mode=args.display,
+            ),
             fuzzmanager=args.fuzzmanager,
             coverage=args.coverage,
             explore=args.explore,
