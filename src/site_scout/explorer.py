@@ -46,6 +46,13 @@ PAGE_LOAD_FAILURES = frozenset(
 )
 
 
+class ExplorerMode(Enum):
+    """Used to control the operation of Explorer."""
+
+    ALL = auto()
+    LOAD = auto()
+
+
 @dataclass(eq=False, frozen=True)
 class ExplorerStatus:
     """Used to collect status data from PageExplorer."""
@@ -66,6 +73,7 @@ class Explorer:
         binary: Path,
         port: int,
         url: str,
+        mode: ExplorerMode = ExplorerMode.ALL,
         load_wait: int = 60,
         pause: int = 10,
     ) -> None:
@@ -80,6 +88,7 @@ class Explorer:
                 binary,
                 port,
                 url,
+                mode,
                 self._queue,
                 self._can_skip,
                 load_wait,
@@ -145,6 +154,7 @@ class Explorer:
         binary: Path,
         port: int,
         url: str,
+        mode: ExplorerMode,
         queue: Queue[ExplorerStatus],
         can_skip: Event,
         load_wait: int,
@@ -157,6 +167,7 @@ class Explorer:
             binary: Binary launched.
             port: Browser driver listening port.
             url: Url to visit.
+            mode: Operational mode.
             queue: Used to pass results.
             can_skip: Used to delay execution.
             load_wait: Time in seconds to wait for page to load before continuing.
@@ -213,16 +224,17 @@ class Explorer:
                 # wait for more content to load/render/run
                 LOG.debug("pausing for %ds...", pause)
                 can_skip.wait(timeout=pause)
-                # attempt to find and activate "skip to content" link
-                state = State.SKIP_CONTENT
-                explorer.skip_to_content()
-                # interact with content
-                state = State.EXPLORING
-                start_time = perf_counter()
-                if not explorer.explore(wait_cb=_wait):
-                    # failed to execute all explore instructions
-                    return
-                explore_duration = perf_counter() - start_time
+                if mode == ExplorerMode.ALL:
+                    # attempt to find and activate "skip to content" link
+                    state = State.SKIP_CONTENT
+                    explorer.skip_to_content()
+                    # interact with content
+                    state = State.EXPLORING
+                    start_time = perf_counter()
+                    if not explorer.explore(wait_cb=_wait):
+                        # failed to execute all explore instructions
+                        return
+                    explore_duration = perf_counter() - start_time
                 # attempt to close the browser
                 state = State.CLOSING
                 explorer.close_browser(wait=10)

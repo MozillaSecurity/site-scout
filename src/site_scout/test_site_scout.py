@@ -13,7 +13,7 @@ from .site_scout import _LOAD_AVG, SiteScout, Status, Visit
 from .url import URL
 
 
-@mark.parametrize("explore", (True, False))
+@mark.parametrize("explore", ("all", None))
 @mark.parametrize("alias", (None, "foo"))
 def test_visit_basic(mocker, explore, alias):
     """test Visit"""
@@ -64,7 +64,7 @@ def test_visit_basic(mocker, explore, alias):
         assert exp.close.call_count == 1
 
 
-@mark.parametrize("explore", [False, True])
+@mark.parametrize("explore", [None, "all"])
 def test_site_scout_launch(mocker, explore):
     """test SiteScout._launch()"""
     mocker.patch("site_scout.site_scout.Explorer", autospec=True)
@@ -104,7 +104,7 @@ def test_site_scout_close(mocker):
     """test SiteScout.close()"""
     active = mocker.Mock(spec_set=Visit)
     complete = mocker.Mock(spec_set=Visit)
-    with SiteScout(None, explore=True) as scout:
+    with SiteScout(None, explore="all") as scout:
         scout._active = [active]
         scout._complete = [complete]
         scout.close()
@@ -118,21 +118,21 @@ def test_site_scout_close(mocker):
     "urls, is_healthy, timeout, cpu_usage, idle, active, explore",
     [
         # no urls to process
-        ([], True, False, None, False, 0, False),
+        ([], True, False, None, False, 0, None),
         # one active
-        ([URL("foo")], True, False, None, False, 1, False),
+        ([URL("foo")], True, False, None, False, 1, None),
         # multiple active
-        ([URL("foo"), URL("bar")], True, False, None, False, 2, False),
+        ([URL("foo"), URL("bar")], True, False, None, False, 2, None),
         # one complete
-        ([URL("foo")], False, False, None, False, 0, False),
+        ([URL("foo")], False, False, None, False, 0, None),
         # timeout
-        ([URL("foo")], True, True, None, False, 0, False),
+        ([URL("foo")], True, True, None, False, 0, None),
         # idle
-        ([URL("foo")], True, False, 0, False, 0, False),
+        ([URL("foo")], True, False, 0, False, 0, None),
         # reset idle
-        ([URL("foo")], True, False, 100, True, 1, False),
+        ([URL("foo")], True, False, 100, True, 1, None),
         # explorer fails to close browser
-        ([URL("foo")], True, False, None, False, 0, True),
+        ([URL("foo")], True, False, None, False, 0, "all"),
     ],
 )
 def test_site_scout_process_active(
@@ -212,7 +212,7 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
     prefs.touch()
     report_dst = tmp_path / "reports"
     report_dst.mkdir()
-    with SiteScout(None, prefs_js=prefs, explore=True) as scout:
+    with SiteScout(None, prefs_js=prefs, explore="all") as scout:
         assert not scout._active
         for url in urls:
             scout._launch(url)
@@ -230,12 +230,12 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, reason, reports):
 @mark.parametrize(
     "reason, explore, state",
     [
-        (Reason.ALERT, True, State.EXPLORING),
-        (Reason.EXITED, True, State.CLOSED),
-        (Reason.CLOSED, True, State.LOAD_FAILURE),
-        (Reason.CLOSED, True, State.NOT_FOUND),
-        (Reason.CLOSED, True, State.UNHANDLED_ERROR),
-        (Reason.EXITED, False, None),
+        (Reason.ALERT, "all", State.EXPLORING),
+        (Reason.EXITED, "all", State.CLOSED),
+        (Reason.CLOSED, "all", State.LOAD_FAILURE),
+        (Reason.CLOSED, "all", State.NOT_FOUND),
+        (Reason.CLOSED, "all", State.UNHANDLED_ERROR),
+        (Reason.EXITED, None, None),
     ],
 )
 def test_site_scout_process_complete_summaries(
@@ -271,7 +271,7 @@ def test_site_scout_process_complete_summaries(
         assert scout._summaries[0].identifier == "http://foo/"
         assert scout._summaries[0].force_closed == (reason == Reason.CLOSED)
         assert scout._summaries[0].has_result == (reason == Reason.ALERT)
-        if explore:
+        if explore is not None:
             assert explorer.return_value.close.call_count == 1
             assert scout._summaries[0].state == state
             assert scout._summaries[0].load_duration == 1.0
@@ -286,13 +286,13 @@ def test_site_scout_process_complete_summaries(
     "urls, reason, jobs, reports, use_fm, status, explore, result_limit, runtime_limit",
     [
         # no urls to process
-        ([], None, 1, 0, False, True, False, 0, 0),
+        ([], None, 1, 0, False, True, None, 0, 0),
         # interesting result
-        ([URL("foo")], Reason.ALERT, 1, 1, False, False, False, 0, 0),
+        ([URL("foo")], Reason.ALERT, 1, 1, False, False, None, 0, 0),
         # job > work
-        ([URL("foo")], Reason.ALERT, 2, 1, False, False, False, 0, 0),
+        ([URL("foo")], Reason.ALERT, 2, 1, False, False, None, 0, 0),
         # multiple interesting results
-        ([URL("foo"), URL("bar")], Reason.ALERT, 1, 2, False, False, False, 0, 0),
+        ([URL("foo"), URL("bar")], Reason.ALERT, 1, 2, False, False, None, 0, 0),
         # work > jobs
         (
             [URL("1"), URL("2"), URL("3"), URL("4")],
@@ -306,23 +306,23 @@ def test_site_scout_process_complete_summaries(
             0,
         ),
         # uninteresting result
-        ([URL("foo")], Reason.CLOSED, 1, 0, False, False, False, 0, 0),
+        ([URL("foo")], Reason.CLOSED, 1, 0, False, False, None, 0, 0),
         # domain rate limit
-        ([URL("foo"), URL("foo")], Reason.CLOSED, 1, 0, False, False, False, 0, 0),
+        ([URL("foo"), URL("foo")], Reason.CLOSED, 1, 0, False, False, None, 0, 0),
         # timeout
-        ([URL("foo")], None, 1, 0, False, False, False, 0, 0),
+        ([URL("foo")], None, 1, 0, False, False, None, 0, 0),
         # report via FuzzManager
-        ([URL("foo")], Reason.ALERT, 1, 1, True, False, False, 0, 0),
+        ([URL("foo")], Reason.ALERT, 1, 1, True, False, None, 0, 0),
         # report via FuzzManager (explore)
-        ([URL("foo")], Reason.ALERT, 1, 1, True, False, True, 0, 0),
+        ([URL("foo")], Reason.ALERT, 1, 1, True, False, "all", 0, 0),
         # report status
-        ([URL("foo")], Reason.ALERT, 1, 1, False, True, False, 0, 0),
+        ([URL("foo")], Reason.ALERT, 1, 1, False, True, None, 0, 0),
         # hit result limit
-        ([URL("foo"), URL("bar")], Reason.ALERT, 1, 1, False, False, False, 1, 0),
+        ([URL("foo"), URL("bar")], Reason.ALERT, 1, 1, False, False, None, 1, 0),
         # hit runtime limit
-        ([URL("foo"), URL("bar")], None, 1, 0, False, False, False, 0, 1),
+        ([URL("foo"), URL("bar")], None, 1, 0, False, False, None, 0, 1),
         # explore
-        ([URL("foo"), URL("bar")], None, 1, 0, False, False, True, 0, 0),
+        ([URL("foo"), URL("bar")], None, 1, 0, False, False, "all", 0, 0),
     ],
 )
 def test_site_scout_run(

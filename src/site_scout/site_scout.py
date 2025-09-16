@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING
 from ffpuppet import BrowserTimeoutError, Debugger, FFPuppet, LaunchError, Reason
 from ffpuppet.display import DisplayMode
 
-from .explorer import PAGE_LOAD_FAILURES, Explorer, State
+from .explorer import PAGE_LOAD_FAILURES, Explorer, ExplorerMode, State
 from .reporter import FuzzManagerReporter
 from .url import URL, URLParseError
 
@@ -299,7 +299,7 @@ class SiteScout:
         memory_limit: int = 0,
         extension: list[Path] | None = None,
         cert_files: list[Path] | None = None,
-        explore: bool = False,
+        explore: str | None = None,
         fuzzmanager: bool = False,
         coverage: bool = False,
         omit_urls: bool = False,
@@ -315,7 +315,7 @@ class SiteScout:
         self._coverage = coverage
         self._debugger = debugger
         self._display_mode = display_mode
-        self._explore = explore
+        self._explore = ExplorerMode[explore.upper()] if explore else None
         self._extension = extension
         self._launch_failure_limit = launch_failure_limit
         # consecutive launch failures
@@ -390,6 +390,7 @@ class SiteScout:
                     self._binary,
                     ffp.marionette,
                     str(url),
+                    mode=self._explore,
                     load_wait=60 if self._debugger == Debugger.NONE else 90,
                     pause=10,
                 )
@@ -761,7 +762,7 @@ class SiteScout:
                     )
                     LOG.debug(
                         "launched, explore: %s, timeout: %ds, %s - %s",
-                        self._explore,
+                        self._explore.name if self._explore else None,
                         time_limit,
                         next_url.uid[:6],
                         short_url,
