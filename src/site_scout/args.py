@@ -73,8 +73,12 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
     )
     parser.add_argument(
         "--explore",
-        action="store_true",
-        help="Use PageExplorer to interact with content.",
+        const="all",
+        nargs="?",
+        default=None,
+        choices=("all", "load"),
+        help="Use PageExplorer to interact with content. "
+        "Options: 'all' run all operations, 'load' wait for page load and exit.",
     )
     parser.add_argument(
         "--fuzzmanager", action="store_true", help="Report results to FuzzManager."
