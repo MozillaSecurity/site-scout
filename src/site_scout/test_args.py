@@ -9,11 +9,19 @@ from pytest import mark, raises
 from .args import TIME_LIMIT_DEBUG, TIME_LIMIT_DEFAULT, TIME_LIMIT_EXPLORE, parse_args
 
 
-def test_parse_args_basic(tmp_path):
+@mark.parametrize(
+    "file_name, browser",
+    [
+        ("firefox", "firefox"),
+        ("target.apk", "fenix"),
+    ],
+)
+def test_parse_args_basic(tmp_path, file_name, browser):
     """test parse_args()"""
-    dummy_file = tmp_path / "dummy_file"
-    dummy_file.touch()
-    assert parse_args([str(dummy_file), "-i", str(dummy_file)])
+    binary = tmp_path / file_name
+    binary.touch()
+    args = parse_args([str(binary), "-i", str(binary)])
+    assert args.browser == browser
 
 
 def test_parse_args_checks(capsys, tmp_path):

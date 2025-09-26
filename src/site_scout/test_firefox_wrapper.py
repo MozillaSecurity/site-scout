@@ -14,11 +14,12 @@ from .url import URL
 
 def test_firefox_wrapper_basic(mocker, tmp_path):
     """test FirefoxWrapper basic"""
+    args = BrowserArgs(tmp_path / "firefox", 10, 10)
+    assert FirefoxWrapper.environment_manager(0, args) is None
     ffp = mocker.patch(
         "site_scout.firefox_wrapper.FFPuppet", autospec=True
     ).return_value
-    args = BrowserArgs(tmp_path / "firefox", 10, 10)
-    with FirefoxWrapper(args, working_path=tmp_path) as browser:
+    with FirefoxWrapper(args, tmp_path, None) as browser:
         working_path = browser._working_path
         assert working_path.is_dir()
         assert not browser.debugger()
@@ -60,7 +61,7 @@ def test_firefox_wrapper_state(mocker, tmp_path):
         "site_scout.firefox_wrapper.FFPuppet", autospec=True
     ).return_value
     args = BrowserArgs(tmp_path / "firefox", 10, 10)
-    with FirefoxWrapper(args, working_path=tmp_path) as browser:
+    with FirefoxWrapper(args, tmp_path, None) as browser:
         ffp.reason = Reason.ALERT
         assert browser.state() == BrowserState.RESULT
         ffp.reason = Reason.WORKER
@@ -77,7 +78,7 @@ def test_firefox_wrapper_launch_failure(mocker, tmp_path):
         "site_scout.firefox_wrapper.FFPuppet", autospec=True
     ).return_value
     args = BrowserArgs(tmp_path / "firefox", 10, 10)
-    with FirefoxWrapper(args, working_path=tmp_path) as browser:
+    with FirefoxWrapper(args, tmp_path, None) as browser:
         ffp.launch.side_effect = BrowserTimeoutError()
         with raises(BrowserTimeoutError):
             assert not browser.launch(
@@ -110,7 +111,7 @@ def test_firefox_wrapper_save_report(mocker, tmp_path):
     prefs = tmp_path / "original_prefs.js"
     prefs.write_text("foo")
     args = BrowserArgs(tmp_path / "firefox", 10, 10, prefs_file=prefs)
-    with FirefoxWrapper(args, working_path=tmp_path) as browser:
+    with FirefoxWrapper(args, tmp_path, None) as browser:
         browser.save_report(tmp_path)
         assert ffp.save_logs.call_count == 1
     assert (tmp_path / "prefs.js").is_file()
@@ -122,7 +123,7 @@ def test_firefox_wrapper_create_explorer(mocker, tmp_path):
     ffp = mocker.patch("site_scout.firefox_wrapper.FFPuppet", autospec=True)
     ffp.return_value.marionette = 12345
     args = BrowserArgs(tmp_path / "firefox", 10, 10)
-    with FirefoxWrapper(args, working_path=tmp_path) as browser:
+    with FirefoxWrapper(args, tmp_path, None) as browser:
         assert browser.create_explorer(URL("a.com"), 10, mode=ExplorerMode.ALL, pause=5)
     explorer.assert_called_with(
         args.binary,

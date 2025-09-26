@@ -7,7 +7,7 @@ from itertools import chain, count, cycle
 
 from pytest import mark
 
-from .browser_wrapper import BrowserArgs, BrowserState
+from .browser_wrapper import BrowserArgs, BrowserState, BrowserWrapper
 from .explorer import Explorer, State
 from .site_scout import _LOAD_AVG, SiteScout, Status, Visit
 from .url import URL
@@ -18,9 +18,7 @@ from .url import URL
 def test_visit_basic(mocker, explore, alias):
     """test Visit"""
     exp = mocker.patch("site_scout.site_scout.Explorer", autospec=True).return_value
-    browser = mocker.patch(
-        "site_scout.site_scout.FirefoxWrapper", autospec=True
-    ).return_value
+    browser = mocker.Mock(spec_set=BrowserWrapper)
     url = URL("foo")
     if alias is not None:
         url.alias = alias
@@ -70,11 +68,12 @@ def test_visit_basic(mocker, explore, alias):
 def test_site_scout_launch(mocker, explore, tmp_path):
     """test SiteScout._launch()"""
     mocker.patch("site_scout.site_scout.Explorer", autospec=True)
-    mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
     args = BrowserArgs(tmp_path / "bin", 10, 10)
-    with SiteScout(args, explore=explore) as scout:
+    with SiteScout(
+        mocker.Mock(spec_set=BrowserWrapper), args, explore=explore
+    ) as scout:
         assert not scout._active
-        assert scout._launch(URL("someurl"))
+        assert scout._launch(URL("someurl"), 1)
         assert scout._active
         assert scout._active[0].is_active()
         assert scout._active[0].idle_timestamp is None
@@ -89,11 +88,11 @@ def test_site_scout_launch(mocker, explore, tmp_path):
 def test_site_scout_launch_failure(mocker, tmp_path):
     """test SiteScout._launch() failed"""
     mocker.patch("site_scout.site_scout.Explorer", autospec=True)
-    browser = mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
+    browser = mocker.Mock(spec_set=BrowserWrapper)
     browser.return_value.launch.return_value = False
     args = BrowserArgs(tmp_path / "bin", 10, 10)
-    with SiteScout(args) as scout:
-        assert not scout._launch(URL("someurl"))
+    with SiteScout(browser, args) as scout:
+        assert not scout._launch(URL("someurl"), 1)
         assert browser.return_value.launch.call_count == 1
         assert browser.return_value.cleanup.call_count == 1
         assert scout._launch_failures == 1
@@ -104,7 +103,7 @@ def test_site_scout_close(mocker):
     """test SiteScout.close()"""
     active = mocker.Mock(spec_set=Visit)
     complete = mocker.Mock(spec_set=Visit)
-    with SiteScout(None, explore="all") as scout:
+    with SiteScout(mocker.Mock(spec_set=BrowserWrapper), None, explore="all") as scout:
         scout._active = [active]
         scout._complete = [complete]
         scout.close()
@@ -137,14 +136,14 @@ def test_site_scout_process_active(mocker, urls, is_healthy, timeout, active, ex
         "site_scout.site_scout.Explorer", autospec=True
     ).return_value
     explorer.is_running.return_value = False
-    browser = mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
+    browser = mocker.Mock(spec_set=BrowserWrapper)
     browser.return_value.is_healthy.return_value = is_healthy
     browser.return_value.create_explorer.return_value = explorer
-    with SiteScout(None, coverage=True, explore=explore) as scout:
+    with SiteScout(browser, None, coverage=True, explore=explore) as scout:
         assert not scout._active
         assert scout._coverage
         for url in urls:
-            scout._launch(url)
+            scout._launch(url, 1)
         total_active = len(scout._active)
         # setup state
         if timeout:
@@ -168,11 +167,12 @@ def test_site_scout_process_active(mocker, urls, is_healthy, timeout, active, ex
 
 def test_site_scout_process_active_idle(mocker):
     """test SiteScout._process_active() idle"""
-    mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
     mocker.patch("site_scout.site_scout.perf_counter", side_effect=count())
-    with SiteScout(None, coverage=True, explore=None) as scout:
+    with SiteScout(
+        mocker.Mock(spec_set=BrowserWrapper), None, coverage=True, explore=None
+    ) as scout:
         assert not scout._active
-        scout._launch(URL("foo"))
+        scout._launch(URL("foo"), 1)
         assert len(scout._active) == 1
         assert not scout._complete
         scout._active[0]._start_time = 0
@@ -224,7 +224,7 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, statue, reports):
     explorer = mocker.Mock(spec_set=Explorer)
     explorer.status.state = State.CLOSED
     explorer.status.url_loaded = ""
-    browser = mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
+    browser = mocker.Mock(spec_set=BrowserWrapper)
     browser.return_value.is_healthy.return_value = False
     browser.return_value.state.return_value = statue
     browser.return_value.save_report.side_effect = save_report
@@ -236,10 +236,10 @@ def test_site_scout_process_complete(mocker, tmp_path, urls, statue, reports):
     report_dst = tmp_path / "reports"
     report_dst.mkdir()
     args = BrowserArgs(tmp_path / "bin", 10, 10, prefs_file=prefs)
-    with SiteScout(args, explore="all") as scout:
+    with SiteScout(browser, args, explore="all") as scout:
         assert not scout._active
         for url in urls:
-            scout._launch(url)
+            scout._launch(url, 1)
         assert scout._active or not urls
         scout._process_active(30)
         assert not scout._active
@@ -276,15 +276,15 @@ def test_site_scout_process_complete_summaries(
     explorer.status.explore_duration = 2.0
     explorer.status.state = explorer_state
     explorer.status.url_loaded = "foo"
-    browser = mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
+    browser = mocker.Mock(spec_set=BrowserWrapper)
     browser.return_value.is_healthy.return_value = False
     browser.return_value.state.return_value = browser_state
     browser.return_value.save_report.side_effect = save_report
     browser.return_value.create_explorer.return_value = explorer
 
-    with SiteScout(None, explore=explore) as scout:
+    with SiteScout(browser, None, explore=explore) as scout:
         assert not scout._active
-        scout._launch(URL("foo"))
+        scout._launch(URL("foo"), 1)
         assert len(scout._active) == 1
         scout._process_active(30)
         assert not scout._active
@@ -404,7 +404,7 @@ def test_site_scout_run(
     mocker.patch("site_scout.site_scout.dump", autospec=True)
     mocker.patch("site_scout.site_scout.sleep", autospec=True)
     mocker.patch("site_scout.site_scout.perf_counter", side_effect=count())
-    browser = mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
+    browser = mocker.Mock(spec_set=BrowserWrapper)
     reporter = mocker.patch("site_scout.site_scout.FuzzManagerReporter", autospec=True)
     reporter.return_value.submit.return_value = (1337, "[@ sig]")
     if state:
@@ -416,7 +416,7 @@ def test_site_scout_run(
     report_dst = tmp_path / "reports"
     report_dst.mkdir()
     args = BrowserArgs(tmp_path / "bin", 10, 10)
-    with SiteScout(args, explore=explore, fuzzmanager=use_fm) as scout:
+    with SiteScout(browser, args, explore=explore, fuzzmanager=use_fm) as scout:
         assert not scout._active
         scout._urls = urls
         scout.run(
@@ -441,10 +441,10 @@ def test_site_scout_run_launch_failed(mocker, tmp_path):
     """test SiteScout.run() launch failed"""
     mocker.patch("site_scout.site_scout.sleep", autospec=True)
     mocker.patch("site_scout.site_scout.perf_counter", side_effect=count())
-    browser = mocker.patch("site_scout.site_scout.FirefoxWrapper", autospec=True)
+    browser = mocker.Mock(spec_set=BrowserWrapper)
     # one launch failure and one successful launch
     browser.return_value.launch.side_effect = (False, True)
-    with SiteScout(None, explore=False) as scout:
+    with SiteScout(browser, None, explore=False) as scout:
         assert not scout._active
         scout._urls = [URL("test")]
         scout.run(tmp_path, 10)
@@ -465,9 +465,11 @@ def test_site_scout_run_launch_failed(mocker, tmp_path):
         (["http://a.c/"], {"a.c": {"": ["/"]}}, True),
     ],
 )
-def test_site_scout_load_db(urls, input_data, omit_urls):
+def test_site_scout_load_db(mocker, urls, input_data, omit_urls):
     """test SiteScout.load_db()"""
-    with SiteScout(None, omit_urls=omit_urls) as scout:
+    with SiteScout(
+        mocker.Mock(spec_set=BrowserWrapper), None, omit_urls=omit_urls
+    ) as scout:
         assert not scout._active
         scout.load_db(input_data)
         for url in scout._urls:
@@ -481,9 +483,11 @@ def test_site_scout_load_db(urls, input_data, omit_urls):
 
 @mark.parametrize("alias", ["foo", "", None])
 @mark.parametrize("omit_urls", [True, False])
-def test_site_scout_load_str(alias, omit_urls):
+def test_site_scout_load_str(mocker, alias, omit_urls):
     """test SiteScout.load_str() success"""
-    with SiteScout(None, omit_urls=omit_urls) as scout:
+    with SiteScout(
+        mocker.Mock(spec_set=BrowserWrapper), None, omit_urls=omit_urls
+    ) as scout:
         scout.load_str("http://a.com/", alias=alias)
         assert scout._urls
         assert str(scout._urls[0]) == "http://a.com/"
@@ -495,16 +499,16 @@ def test_site_scout_load_str(alias, omit_urls):
             assert scout._urls[0].alias is None
 
 
-def test_site_scout_load_str_failure():
+def test_site_scout_load_str_failure(mocker):
     """test SiteScout.load_str() failures"""
-    with SiteScout(None) as scout:
+    with SiteScout(mocker.Mock(spec_set=BrowserWrapper), None) as scout:
         assert scout.load_str("foo") is None
 
 
-def test_site_scout_load_collision():
+def test_site_scout_load_collision(mocker):
     """test loading an existing URL"""
     existing = "a.b.com"
-    with SiteScout(None) as scout:
+    with SiteScout(mocker.Mock(spec_set=BrowserWrapper), None) as scout:
         scout.load_str(existing)
         assert len(scout._urls) == 1
         scout.load_str(existing)
@@ -621,9 +625,9 @@ def test_site_scout_status(
         (10, 2, False, 2),
     ],
 )
-def test_site_scout_schedule_urls(size, limit, randomize, visits):
+def test_site_scout_schedule_urls(mocker, size, limit, randomize, visits):
     """test Status.schedule_urls()"""
-    with SiteScout(None) as scout:
+    with SiteScout(mocker.Mock(spec_set=BrowserWrapper), None) as scout:
         # prepare scout._urls
         scout._urls = list(range(size))
         scout.schedule_urls(url_limit=limit, randomize=randomize, visits=visits)
@@ -641,9 +645,9 @@ def test_site_scout_schedule_urls(size, limit, randomize, visits):
                 assert scout._urls[0] == scout._urls[size]
 
 
-def test_site_scout_skip_url():
+def test_site_scout_skip_url(mocker):
     """test SiteScout._skip_url()"""
-    with SiteScout(None) as scout:
+    with SiteScout(mocker.Mock(spec_set=BrowserWrapper), None) as scout:
         scout._urls = [URL("a"), URL("b"), URL("c")] * 3
         scout._skip_url(URL("a"), state=State.NOT_FOUND)
         assert len(scout._urls) == 6
@@ -656,7 +660,7 @@ def test_site_scout_skip_url():
 def test_site_scout_skip_remaining(mocker):
     """test SiteScout._skip_remaining()"""
     active = mocker.Mock(spec_set=Visit)
-    with SiteScout(None) as scout:
+    with SiteScout(mocker.Mock(spec_set=BrowserWrapper), None) as scout:
         scout._active = [active]
         scout._urls = [mocker.Mock(spec_set=URL)]
         scout._skip_remaining()

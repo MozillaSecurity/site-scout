@@ -56,7 +56,9 @@ class BrowserWrapper(ABC):
     __slots__ = ("args",)
 
     # pylint: disable=unused-argument
-    def __init__(self, args: BrowserArgs, working_path: Path) -> None:
+    def __init__(
+        self, args: BrowserArgs, working_path: Path, env_mgr: EnvironmentManager | None
+    ) -> None:
         self.args = args
 
     def __enter__(self) -> BrowserWrapper:
@@ -123,6 +125,22 @@ class BrowserWrapper(ABC):
 
         Returns:
             None.
+        """
+
+    @staticmethod
+    @abstractmethod
+    def environment_manager(
+        instance_limit: int,
+        browser_args: BrowserArgs,
+    ) -> EnvironmentManager | None:
+        """Create a custom environment manager instance.
+
+        Args:
+            instance_limit: Maximum number of browser instances to run in parallel.
+            browser_args: Arguments passed to the browser.
+
+        Returns:
+            An environment manager object or None.
         """
 
     @abstractmethod
@@ -202,3 +220,12 @@ class BrowserWrapper(ABC):
         Return:
             True if the browser exited before the timeout elapsed otherwise False.
         """
+
+
+class EnvironmentManager(ABC):
+    """EnvironmentManager is used to configure and control required components that are
+    required to run browsers, for example, emulators."""
+
+    @abstractmethod
+    def cleanup(self) -> None:
+        """Perform any necessary cleanup operations"""

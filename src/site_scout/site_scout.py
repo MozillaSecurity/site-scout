@@ -24,9 +24,8 @@ from tempfile import gettempdir
 from time import gmtime, perf_counter, sleep, strftime
 from typing import TYPE_CHECKING
 
-from .browser_wrapper import BrowserState
+from .browser_wrapper import BrowserState, EnvironmentManager
 from .explorer import PAGE_LOAD_FAILURES, Explorer, ExplorerMode, State
-from .firefox_wrapper import FirefoxWrapper
 from .reporter import FuzzManagerReporter
 from .url import URL, URLParseError
 
@@ -265,8 +264,10 @@ class SiteScout:
     __slots__ = (
         "_active",
         "_browser_args",
+        "_browser_wrapper",
         "_complete",
         "_coverage",
+        "_env_mgr",
         "_explore",
         "_fuzzmanager",
         "_launch_failure_limit",
@@ -278,6 +279,7 @@ class SiteScout:
 
     def __init__(
         self,
+        browser_wrapper_cls: type[BrowserWrapper],
         browser_args: BrowserArgs,
         launch_failure_limit: int = 3,
         explore: str | None = None,
@@ -288,11 +290,13 @@ class SiteScout:
         assert launch_failure_limit > 0
         self._active: list[Visit] = []
         self._browser_args = browser_args
+        self._browser_wrapper = browser_wrapper_cls
         self._complete: list[Visit] = []
         self._summaries: list[VisitSummary] = []
         self._urls: list[URL] = []
         self._coverage = coverage
         self._explore = ExplorerMode[explore.upper()] if explore else None
+        self._env_mgr: EnvironmentManager | None = None
         self._launch_failure_limit = launch_failure_limit
         # consecutive launch failures
         self._launch_failures = 0
@@ -324,6 +328,8 @@ class SiteScout:
             visit.cleanup()
         self._active.clear()
         self._complete.clear()
+        if self._env_mgr is not None:
+            self._env_mgr.cleanup()
 
     def _launch(self, url: URL, log_path: Path | None = None) -> bool:
         """Launch a new browser instance and visit provided URL.
@@ -335,7 +341,7 @@ class SiteScout:
         Returns:
             True if the browser was launched otherwise False.
         """
-        browser = FirefoxWrapper(self._browser_args, TMP_PATH)
+        browser = self._browser_wrapper(self._browser_args, TMP_PATH, self._env_mgr)
         if not browser.launch(
             str(url),
             self._explore is not None,
@@ -643,7 +649,7 @@ class SiteScout:
             time_limit: Maximum time in seconds of a site visit.
             check_delay: Time in seconds between checking for results.
             domain_rate_limit: Minimum time in seconds between visiting the same domain.
-            instance_limit: Maximum number of browser sessions to run at once.
+            instance_limit: Maximum number of browser instances to run in parallel.
             status_report: File to populate with status report data.
             result_limit: Number of results that can be found before exiting.
             runtime_limit: Maximum number of seconds to run.
@@ -667,6 +673,9 @@ class SiteScout:
         status = Status(status_report) if status_report else None
         total_results = 0
         total_urls = len(self._urls)
+        self._env_mgr = self._browser_wrapper.environment_manager(
+            instance_limit, self._browser_args
+        )
         while self._urls or self._active:
             # perform status report
             if status:
