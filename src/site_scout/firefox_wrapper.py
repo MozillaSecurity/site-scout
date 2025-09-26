@@ -19,7 +19,11 @@ from ffpuppet import (
     Reason,
 )
 
-from .browser_wrapper import BrowserArgs, BrowserState, BrowserWrapper
+from .browser_wrapper import (
+    BrowserArgs,
+    BrowserState,
+    BrowserWrapper,
+)
 from .explorer import Explorer, ExplorerMode
 
 if TYPE_CHECKING:
@@ -34,8 +38,8 @@ class FirefoxWrapper(BrowserWrapper):
 
     __slots__ = ("_debugger", "_ffp", "_working_path")
 
-    def __init__(self, args: BrowserArgs, working_path: Path) -> None:
-        super().__init__(args, working_path)
+    def __init__(self, args: BrowserArgs, working_path: Path, env_mgr: None) -> None:
+        super().__init__(args, working_path, env_mgr)
         self._working_path = Path(mkdtemp(dir=working_path))
         # TODO: generate prefs if needed
         self._debugger = args.debugger or Debugger.NONE.name
@@ -74,6 +78,10 @@ class FirefoxWrapper(BrowserWrapper):
         if self._ffp.is_healthy():
             self._ffp.dump_coverage(timeout=timeout)
 
+    @staticmethod
+    def environment_manager(instance_limit: int, browser_args: BrowserArgs) -> None:
+        return None
+
     def is_healthy(self) -> bool:
         return self._ffp.is_healthy()
 
@@ -98,7 +106,7 @@ class FirefoxWrapper(BrowserWrapper):
                 env_mod={"MOZ_CRASHREPORTER_SHUTDOWN": "1"},
                 location=None if explore else str(url),
                 launch_timeout=self.args.launch_timeout,
-                log_limit=50 * 1024 * 1024,
+                log_limit=2 * 1024 * 1024,
                 marionette=0 if explore else None,
                 memory_limit=self.args.memory_limit,
                 prefs_js=self.args.prefs_file,

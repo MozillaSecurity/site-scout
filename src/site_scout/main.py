@@ -25,11 +25,15 @@ from yaml.scanner import ScannerError
 
 from .args import parse_args
 from .browser_wrapper import BrowserArgs
+from .fenix_wrapper import FenixWrapper
+from .firefox_wrapper import FirefoxWrapper
 from .site_scout import SiteScout
 from .url_db import UrlDB, UrlDBError, verify_db
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterable
+
+    from .browser_wrapper import BrowserWrapper
 
 LOG = getLogger(__name__)
 
@@ -155,6 +159,13 @@ def main(argv: list[str] | None = None) -> int:
     assert any(args.input) != any(args.url)
     init_logging(args.log_level, args.disable_logging)
 
+    # available browser wrappers
+    wrappers: dict[str, type[BrowserWrapper]] = {
+        "firefox": FirefoxWrapper,
+        "fenix": FenixWrapper,
+    }
+    LOG.debug("browser to use '%s'", args.browser)
+
     tmp_prefs = False
     try:
         # generate prefs.js file if one is not provided
@@ -165,6 +176,7 @@ def main(argv: list[str] | None = None) -> int:
 
         LOG.info("Starting Site Scout...")
         with SiteScout(
+            wrappers[args.browser],
             BrowserArgs(
                 args.binary.resolve(),
                 args.launch_timeout,
@@ -210,7 +222,8 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         LOG.warning("Aborting...")
 
-    except LaunchError:
+    except LaunchError as exc:
+        LOG.error(str(exc))
         return 1
 
     finally:

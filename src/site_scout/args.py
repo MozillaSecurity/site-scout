@@ -56,6 +56,13 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
     group.add_argument("-u", "--url", default=[], nargs="+", help="URL(s) to visit.")
 
     parser.add_argument(
+        "-b",
+        "--browser",
+        choices=("firefox", "fenix"),
+        default="firefox",
+        help="Browser wrapper to use (autodetect is best effort).",
+    )
+    parser.add_argument(
         "--disable-logging",
         action="store_true",
         help="Disable console output before running (default: %(default)s).",
@@ -232,6 +239,9 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
 
     if not args.binary.is_file():
         parser.error(f"binary does not exist: '{args.binary}'")
+
+    if args.binary.suffix.lower() == ".apk":
+        args.browser = "fenix"
 
     for in_path in args.input:
         if not in_path.exists():
