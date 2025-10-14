@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from contextlib import suppress
 from logging import getLogger
+from os import getenv
 from shutil import copyfile
 from time import perf_counter
 from typing import TYPE_CHECKING
@@ -310,6 +311,7 @@ class EmulatorPool:
                 boot_timeout=300,
                 headless=self._display_mode == "headless",
                 xvfb=self._display_mode == "xvfb",
+                emulator_output=getenv("EMULATOR_OUTPUT", "") == "1",
             )
         except:
             AndroidEmulator.remove_avd(avd_name)
