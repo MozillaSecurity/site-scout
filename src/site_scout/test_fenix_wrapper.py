@@ -186,8 +186,8 @@ def test_emulator_pool_basic(mocker, tmp_path):
     device = pool.select()
     assert device == "emulator-1234"
     assert "emulator-1234" in pool._in_use
-    # reset
-    pool.reset("emulator-1234")
+    # release
+    pool.release("emulator-1234")
     assert not pool._in_use
     # select - emulators not running
     pool._emulators["emulator-1234"].poll.return_value = 0
@@ -256,6 +256,6 @@ def test_fenix_environment_manager_basic(mocker, tmp_path):
     env_mgr = FenixEnvironmentManager(1, BrowserArgs(tmp_path / "a.apk", 1, 1))
     assert env_mgr.select_device(tmp_path / "foo.apk") == "test-1234"
     env_mgr.release_device("test-1234")
-    assert pool_cls.return_value.reset.call_count == 1
+    assert pool_cls.return_value.release.call_count == 1
     env_mgr.cleanup()
     assert pool_cls.return_value.cleanup.call_count == 1
