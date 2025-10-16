@@ -4,6 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 # pylint: disable=protected-access
 from fxpoppet import ADBLaunchError, ADBProcess, Reason
+from fxpoppet.adb_session import ADBCommunicationError
 from fxpoppet.emulator.android import AndroidEmulator, AndroidEmulatorError
 from pytest import mark, raises
 
@@ -143,11 +144,14 @@ def test_emulator_pool_launch_and_prep_emulator(mocker, tmp_path):
     assert session_cls.return_value.shell.call_count == 0
     # success
     session_cls.reset_mock(return_value=True)
-    emu_cls.reset_mock()
-    emu.poll.return_value = None
     assert pool._prepare_emulator(emu, tmp_path / "fake.apk")
     assert session_cls.return_value.shell.call_count == 7
     assert session_cls.return_value.install.call_count == 1
+    assert session_cls.return_value.disconnect.call_count == 1
+    # prep failure
+    session_cls.reset_mock(return_value=True)
+    session_cls.return_value.shell.side_effect = ADBCommunicationError()
+    assert not pool._prepare_emulator(emu, tmp_path / "fake.apk")
     assert session_cls.return_value.disconnect.call_count == 1
 
 

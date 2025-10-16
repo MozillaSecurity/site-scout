@@ -320,15 +320,12 @@ class EmulatorPool:
 
     def _prepare_emulator(self, emu: AndroidEmulator, apk: Path) -> bool:
         LOG.debug("preparing device (emulator-%d)...", emu.port)
-
         session = ADBSession(f"emulator-{emu.port}")
         with suppress(ADBCommunicationError, ADBSessionError):
             session.connect(as_root=True, boot_timeout=10)
         if not session.connected:
-            LOG.warning("Cannot connect to emulator")
+            LOG.warning("Cannot connect to prepare emulator")
             return False
-
-        package: str | None = None
         try:
             # disable some UI animations
             session.shell(["settings", "put", "global", "animator_duration_scale", "0"])
@@ -343,15 +340,12 @@ class EmulatorPool:
                 ["settings", "put", "global", "background_process_limit", "0"]
             )
             session.shell(["dumpsys", "deviceidle", "disable"])
-            LOG.debug("installing '%s'", apk)
-            package = session.install(apk)
+            session.install(apk)
+        except ADBCommunicationError:
+            LOG.debug("ADBCommunicationError during prep")
+            return False
         finally:
             session.disconnect()
-        # llvm_sym = self.args.binary / "llvm-symbolizer"
-        # if llvm_sym.is_file():
-        #    LOG.debug("installing llvm-symbolizer...")
-        #    session.install_file(llvm_sym, DEVICE_TMP, mode="777")
-        LOG.debug("installed %s", package)
         return True
 
     def _trim_emulators(self) -> None:
