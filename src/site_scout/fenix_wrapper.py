@@ -253,8 +253,8 @@ class EmulatorPool:
                 LOG.warning("Failed to prepare device")
         assert len(self._emulators) <= self._size_limit
 
-    def reset(self, serial: str) -> None:
-        """Mark emulator and not in use.
+    def release(self, serial: str) -> None:
+        """Mark an emulator as not in use.
 
         Args:
             serial: Emulator to mark as not in use.
@@ -393,7 +393,7 @@ class FenixEnvironmentManager(EnvironmentManager):
         Returns:
             None
         """
-        self._pool.reset(serial)
+        self._pool.release(serial)
 
     def cleanup(self) -> None:
         self._pool.cleanup()
