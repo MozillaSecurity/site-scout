@@ -162,10 +162,12 @@ def test_emulator_pool_basic(mocker, tmp_path):
     pool = EmulatorPool(1)
     assert pool._size_limit == 1
     assert not pool._in_use
-    #
+    # launch failure
     mocker.patch.object(
         EmulatorPool, "_launch_emulator", side_effect=AndroidEmulatorError()
     )
+    for _ in range(EmulatorPool.LAUNCH_FAILURE_LIMIT - 1):
+        pool.manage_emulators(tmp_path / "target.apk")
     with raises(AndroidEmulatorError):
         pool.manage_emulators(tmp_path / "target.apk")
     # prepare fails
