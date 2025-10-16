@@ -180,8 +180,12 @@ class EmulatorPool:
         _display_mode: Display mode of emulators.
         _emulators: Emulator objects.
         _in_use: Corresponding serials of emulators currently in use.
+        _launch_failures: Current consecutive launch failure count.
         _size_limit: Maximum number of emulators allowed.
     """
+
+    # consecutive launch failure limit
+    LAUNCH_FAILURE_LIMIT = 3
 
     __slot__ = ("_display_mode", "_emulators", "_in_use", "_size_limit")
 
@@ -191,6 +195,7 @@ class EmulatorPool:
         self._display_mode = display_mode
         self._emulators: dict[str, AndroidEmulator] = {}
         self._in_use: set[str] = set()
+        self._launch_failures = 0
         self._size_limit = size_limit
 
     def cleanup(self) -> None:
@@ -239,27 +244,23 @@ class EmulatorPool:
             self._size_limit,
         )
         if available == 0 and len(self._emulators) < self._size_limit:
-            for attempts_remaining in reversed(range(2)):
-                try:
-                    emu = self._launch_emulator()
-                except AndroidEmulatorError:
-                    LOG.warning("Emulator launch attempt failed!")
-                    if attempts_remaining > 0:
-                        continue
+            try:
+                emu = self._launch_emulator()
+            except AndroidEmulatorError as exc:
+                LOG.warning("Failed to launch emulator: %s", exc)
+                self._launch_failures += 1
+                if self._launch_failures >= self.LAUNCH_FAILURE_LIMIT:
                     raise
-                break
-            if self._prepare_emulator(emu, apk):
-                serial = f"emulator-{emu.port}"
-                assert serial not in self._emulators
-                self._emulators[serial] = emu
-            else:
-                # emulator prep failed
-                if emu.poll() is None:
-                    emu.terminate()
-                emu.wait(timeout=30)
-                emu.cleanup()
+                return
+            self._launch_failures = 0
+            if not self._prepare_emulator(emu, apk):
+                self._shutdown_emulator(emu)
                 LOG.warning("Failed to prepare device")
-        assert len(self._emulators) <= self._size_limit
+                return
+            serial = f"emulator-{emu.port}"
+            assert serial not in self._emulators
+            self._emulators[serial] = emu
+            assert len(self._emulators) <= self._size_limit
 
     def release(self, serial: str) -> None:
         """Mark an emulator as not in use.
