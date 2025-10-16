@@ -3,6 +3,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 # pylint: disable=protected-access
+from subprocess import TimeoutExpired
+
 from fxpoppet import ADBLaunchError, ADBProcess, Reason
 from fxpoppet.adb_session import ADBCommunicationError
 from fxpoppet.emulator.android import AndroidEmulator, AndroidEmulatorError
@@ -193,12 +195,27 @@ def test_emulator_pool_basic(mocker, tmp_path):
     pool._emulators["emulator-1234"].poll.return_value = 0
     assert pool.select() is None
     assert not pool._in_use
-    # cleanup
+    # shutdown
     pool._emulators["emulator-1234"].poll.return_value = None
+    emu.reset_mock()
+    pool.shutdown("emulator-1234")
+    assert emu.terminate.call_count == 1
+    assert emu.wait.call_count == 1
+    assert emu.cleanup.call_count == 1
+    # cleanup
+    emu.reset_mock()
     pool.cleanup()
     assert emu.terminate.call_count == 1
     assert emu.wait.call_count == 1
     assert emu.cleanup.call_count == 1
+    # cleanup - failed to terminate
+    emu.reset_mock()
+    pool._emulators["emulator-1234"].poll.return_value = None
+    pool._emulators["emulator-1234"].wait.side_effect = TimeoutExpired("foo", 1)
+    pool.cleanup()
+    assert emu.terminate.call_count == 1
+    assert emu.wait.call_count == 1
+    assert emu.emu.kill.call_count == 1
 
 
 def test_emulator_pool_check_emulators(mocker):
@@ -249,6 +266,26 @@ def test_emulator_pool_trim_emulators(mocker):
     assert session_cls.call_count == 0
 
 
+def test_emulator_pool_shutdown_emulator(mocker):
+    """test EmulatorPool._shutdown_emulator()"""
+    # successful termination
+    emu = mocker.Mock(spec_set=AndroidEmulator)
+    emu.poll.return_value = None
+    EmulatorPool._shutdown_emulator(emu)
+    assert emu.terminate.call_count == 1
+    assert emu.wait.call_count == 1
+    assert emu.emu.kill.call_count == 0
+    assert emu.cleanup.call_count == 1
+    # failed termination
+    emu.reset_mock()
+    emu.wait.side_effect = TimeoutExpired("foo", 1)
+    EmulatorPool._shutdown_emulator(emu)
+    assert emu.terminate.call_count == 1
+    assert emu.wait.call_count == 2
+    assert emu.emu.kill.call_count == 1
+    assert emu.cleanup.call_count == 1
+
+
 def test_fenix_environment_manager_basic(mocker, tmp_path):
     """test FenixEnvironmentManager basic"""
     pool_cls = mocker.patch("site_scout.fenix_wrapper.EmulatorPool", autospec=True)
@@ -257,5 +294,7 @@ def test_fenix_environment_manager_basic(mocker, tmp_path):
     assert env_mgr.select_device(tmp_path / "foo.apk") == "test-1234"
     env_mgr.release_device("test-1234")
     assert pool_cls.return_value.release.call_count == 1
+    env_mgr.shutdown_device("test-1234")
+    assert pool_cls.return_value.shutdown.call_count == 1
     env_mgr.cleanup()
     assert pool_cls.return_value.cleanup.call_count == 1

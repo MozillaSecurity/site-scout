@@ -7,6 +7,7 @@ from contextlib import suppress
 from logging import getLogger
 from os import getenv
 from shutil import copyfile
+from subprocess import TimeoutExpired
 from time import perf_counter
 from typing import TYPE_CHECKING
 
@@ -117,6 +118,7 @@ class FenixWrapper(BrowserWrapper):
             session.connect(as_root=True, boot_timeout=10)
         if not session.connected:
             LOG.error("FenixWrapper failed to connect to device!")
+            self._env_mgr.shutdown_device(self._device)
             return False
         LOG.debug("connected to device (%s)", session.device_id)
         self._session = session
@@ -126,6 +128,7 @@ class FenixWrapper(BrowserWrapper):
             self._proc = ADBProcess(self._package, self._session)
         except ADBSessionError:
             LOG.error("FenixWrapper ADBProcess init failed!")
+            self._env_mgr.shutdown_device(self._device)
             return False
 
         try:
@@ -143,6 +146,7 @@ class FenixWrapper(BrowserWrapper):
         except ADBLaunchError as exc:
             LOG.error("ADBProcess LaunchError: %s", exc)
             self.close()
+            self._env_mgr.shutdown_device(self._device)
             if raise_on_failure:
                 raise
             return False
@@ -204,8 +208,12 @@ class EmulatorPool:
         deadline = perf_counter() + 60
         for emu in self._emulators.values():
             max_delay = max(deadline - perf_counter(), 1)
-            # this can raise subprocess.TimeoutExpired
-            emu.wait(timeout=max_delay)
+            try:
+                emu.wait(timeout=max_delay)
+            except TimeoutExpired:
+                LOG.warning("Failed to terminate emulator")
+                emu.emu.kill()
+                continue
             emu.cleanup()
 
     def manage_emulators(self, apk: Path) -> None:
@@ -285,6 +293,17 @@ class EmulatorPool:
         LOG.debug("no running emulator available")
         return None
 
+    def shutdown(self, serial: str) -> None:
+        """Shutdown an emulator.
+
+        Args:
+            serial: Emulator to shutdown.
+
+        Returns:
+            None
+        """
+        self._shutdown_emulator(self._emulators[serial])
+
     def _check_emulators(self) -> None:
         for serial, emu in self._emulators.items():
             if emu.poll() is not None:
@@ -295,9 +314,7 @@ class EmulatorPool:
                 session.connect(as_root=False, boot_timeout=10)
             if not session.connected:
                 LOG.warning("Cannot connect to device (%s)", serial)
-                emu.terminate()
-                emu.wait(timeout=30)
-                emu.cleanup()
+                self._shutdown_emulator(emu)
 
     def _launch_emulator(self) -> AndroidEmulator:
         port = AndroidEmulator.search_free_ports()
@@ -348,6 +365,21 @@ class EmulatorPool:
             session.disconnect()
         return True
 
+    @staticmethod
+    def _shutdown_emulator(emu: AndroidEmulator) -> None:
+        if emu.poll() is None:
+            emu.terminate()
+        try:
+            emu.wait(timeout=30)
+        except TimeoutExpired:
+            emu.emu.kill()
+            try:
+                emu.wait(timeout=30)
+            except TimeoutExpired:
+                LOG.warning("Failed to shutdown emulator")
+        finally:
+            emu.cleanup()
+
     def _trim_emulators(self) -> None:
         # remove emulators that are not running
         not_running: list[str] = []
@@ -394,6 +426,17 @@ class FenixEnvironmentManager(EnvironmentManager):
             None
         """
         self._pool.release(serial)
+
+    def shutdown_device(self, serial: str) -> None:
+        """Shutdown device.
+
+        Args:
+            serial: Device to shutdown.
+
+        Returns:
+            None
+        """
+        self._pool.shutdown(serial)
 
     def cleanup(self) -> None:
         self._pool.cleanup()
