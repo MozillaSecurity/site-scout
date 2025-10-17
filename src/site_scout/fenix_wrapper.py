@@ -105,32 +105,29 @@ class FenixWrapper(BrowserWrapper):
         assert self._package is not None
         assert self._proc is None
         assert self._session is None
-
+        # select a device
         self._device = self._env_mgr.select_device(self.args.binary)
         if self._device is None:
             LOG.error("Failed to select target device!")
             return False
-
-        LOG.debug("opening adb session...")
+        # connect to the device
         session = ADBSession(self._device)
         with suppress(ADBCommunicationError, ADBSessionError):
-            # emulator is expected to be running
             session.connect(as_root=True, boot_timeout=10)
         if not session.connected:
             LOG.error("FenixWrapper failed to connect to device!")
             self._env_mgr.shutdown_device(self._device)
             return False
-        LOG.debug("connected to device (%s)", session.device_id)
+        LOG.debug("connected to '%s' (%s)", self._device, session.device_id)
         self._session = session
         self._session.symbols[self._package] = self.args.binary.parent / "symbols"
-
+        # launch the browser on the device
         try:
             self._proc = ADBProcess(self._package, self._session)
         except ADBSessionError:
             LOG.error("FenixWrapper ADBProcess init failed!")
             self._env_mgr.shutdown_device(self._device)
             return False
-
         try:
             self._proc.launch(
                 str(url),
@@ -319,13 +316,13 @@ class EmulatorPool:
             with suppress(ADBCommunicationError, ADBSessionError):
                 session.connect(as_root=False, boot_timeout=10)
             if not session.connected:
-                LOG.warning("Cannot connect to device (%s)", serial)
+                LOG.warning("Cannot connect to emulator '%s'", serial)
                 self._shutdown_emulator(emu)
 
     def _launch_emulator(self) -> AndroidEmulator:
         port = AndroidEmulator.search_free_ports()
         avd_name = f"x86.{port:d}"
-        LOG.debug("launching emulator (emulator-%d)...", port)
+        LOG.debug("launching emulator 'emulator-%d'...", port)
         AndroidEmulator.create_avd(avd_name)
         try:
             emu = AndroidEmulator(
@@ -342,7 +339,7 @@ class EmulatorPool:
         return emu
 
     def _prepare_emulator(self, emu: AndroidEmulator, apk: Path) -> bool:
-        LOG.debug("preparing device (emulator-%d)...", emu.port)
+        LOG.debug("preparing device 'emulator-%d'...", emu.port)
         session = ADBSession(f"emulator-{emu.port}")
         with suppress(ADBCommunicationError, ADBSessionError):
             session.connect(as_root=True, boot_timeout=10)
@@ -393,9 +390,9 @@ class EmulatorPool:
             if emu.poll() is not None:
                 not_running.append(serial)
         for serial in not_running:
-            LOG.debug("removing emulator (%s) from pool", serial)
+            LOG.debug("removing emulator '%s' from pool", serial)
             if serial in self._in_use:
-                LOG.warning("Emulator (%s) not running and in use!", serial)
+                LOG.warning("Emulator '%s' not running and in use!", serial)
                 self._in_use.remove(serial)
             self._emulators.pop(serial)
 
