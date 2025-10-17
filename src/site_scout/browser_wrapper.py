@@ -79,11 +79,11 @@ class BrowserWrapper(ABC):
         """
 
     @abstractmethod
-    def close(self, force_close: bool = False) -> None:
+    def close(self) -> None:
         """Close target.
 
         Args:
-            force_close: Close as quickly as possible. Logs will not be collected.
+            None
 
         Returns:
             None.
