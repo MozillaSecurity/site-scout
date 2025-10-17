@@ -290,7 +290,6 @@ class EmulatorPool:
             None
         """
         available = set(self._emulators) - self._in_use
-        assert available
         while available:
             selected = available.pop()
             # check if emulator is running
