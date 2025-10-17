@@ -187,7 +187,13 @@ class EmulatorPool:
     # consecutive launch failure limit
     LAUNCH_FAILURE_LIMIT = 3
 
-    __slot__ = ("_display_mode", "_emulators", "_in_use", "_size_limit")
+    __slot__ = (
+        "_display_mode",
+        "_emulators",
+        "_in_use",
+        "_launch_failures",
+        "_size_limit",
+    )
 
     def __init__(self, size_limit: int, display_mode: str = "default") -> None:
         assert display_mode in {"default", "headless", "xvfb"}
