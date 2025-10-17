@@ -61,7 +61,7 @@ class FenixWrapper(BrowserWrapper):
         if self._device is not None:
             self._env_mgr.release_device(self._device)
 
-    def close(self, force_close: bool = False) -> None:
+    def close(self) -> None:
         if self._proc is not None:
             self._proc.close()
 

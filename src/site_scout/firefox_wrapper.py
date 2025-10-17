@@ -54,8 +54,8 @@ class FirefoxWrapper(BrowserWrapper):
         self._ffp.clean_up()
         rmtree(self._working_path)
 
-    def close(self, force_close: bool = False) -> None:
-        self._ffp.close(force_close=force_close)
+    def close(self) -> None:
+        self._ffp.close()
 
     def create_explorer(
         self, url: URL, load_wait: int, mode: ExplorerMode, pause: int = 0
