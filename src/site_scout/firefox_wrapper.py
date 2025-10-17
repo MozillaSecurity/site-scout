@@ -52,7 +52,7 @@ class FirefoxWrapper(BrowserWrapper):
 
     def cleanup(self) -> None:
         self._ffp.clean_up()
-        rmtree(self._working_path)
+        rmtree(self._working_path, ignore_errors=True)
 
     def close(self) -> None:
         self._ffp.close()
