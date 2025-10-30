@@ -6,7 +6,7 @@
 from subprocess import TimeoutExpired
 
 from fxpoppet import ADBLaunchError, ADBProcess, Reason
-from fxpoppet.adb_session import ADBCommunicationError
+from fxpoppet.adb_session import ADBSessionError
 from fxpoppet.emulator.android import AndroidEmulator, AndroidEmulatorError
 from pytest import mark, raises
 
@@ -100,10 +100,10 @@ def test_fenix_wrapper_launch_failures(mocker, tmp_path):
         assert not browser.launch(URL("a.com"), False, None, False)
         # failed to create session
         env_mgr.reset_mock(return_value=True)
-        session_cls.return_value.connected = False
+        session_cls.connect.side_effect = ADBSessionError("boot failed")
         assert not browser.launch(URL("a.com"), False, None, False)
         assert proc_cls.call_count == 0
-        session_cls.reset_mock(return_value=True)
+        session_cls.reset_mock(side_effect=True)
         # failed to create proc
         proc_cls.side_effect = ADBLaunchError("launch-fail-test")
         assert not browser.launch(URL("a.com"), False, None, False)
@@ -137,24 +137,27 @@ def test_emulator_pool_launch_and_prep_emulator(mocker, tmp_path):
     assert emu_cls.create_avd.call_count == 1
     assert emu_cls.remove_avd.call_count == 1
     # handle process shutdown
-    session_cls.return_value.connected = False
+    session_cls.connect.side_effect = ADBSessionError("boot failed")
     emu_cls.reset_mock(side_effect=True)
     emu = pool._launch_emulator()
     assert emu_cls.create_avd.call_count == 1
     assert emu_cls.remove_avd.call_count == 0
     assert not pool._prepare_emulator(emu, tmp_path / "fake.apk")
-    assert session_cls.return_value.shell.call_count == 0
+    assert session_cls.connect.call_count == 1
+    assert session_cls.connect.return_value.device.shell.call_count == 0
     # success
-    session_cls.reset_mock(return_value=True)
+    session_cls.reset_mock(side_effect=True)
     assert pool._prepare_emulator(emu, tmp_path / "fake.apk")
-    assert session_cls.return_value.shell.call_count == 7
-    assert session_cls.return_value.install.call_count == 1
-    assert session_cls.return_value.disconnect.call_count == 1
+    assert session_cls.connect.call_count == 1
+    assert session_cls.connect.return_value.device.shell.call_count == 7
+    assert session_cls.connect.return_value.install.call_count == 1
     # prep failure
-    session_cls.reset_mock(return_value=True)
-    session_cls.return_value.shell.side_effect = ADBCommunicationError()
+    session_cls.reset_mock()
+    session_cls.connect.return_value.install.side_effect = ADBSessionError(
+        "install failed"
+    )
     assert not pool._prepare_emulator(emu, tmp_path / "fake.apk")
-    assert session_cls.return_value.disconnect.call_count == 1
+    assert session_cls.connect.call_count == 1
 
 
 def test_emulator_pool_basic(mocker, tmp_path):
@@ -231,16 +234,16 @@ def test_emulator_pool_check_emulators(mocker):
     emu.poll.return_value = 0
     pool._emulators["test-1234"] = emu
     pool._check_emulators()
-    assert session_cls.call_count == 0
+    assert session_cls.connect.call_count == 0
     # running emulator
-    session_cls.return_value.connected = True
     emu = mocker.Mock(spec_set=AndroidEmulator)
     emu.poll.return_value = None
     pool._emulators["test-1234"] = emu
     pool._check_emulators()
+    assert session_cls.connect.call_count == 1
     assert emu.cleanup.call_count == 0
     # running emulator - connection failed
-    session_cls.return_value.connected = False
+    session_cls.connect.side_effect = ADBSessionError("boot failed")
     pool._check_emulators()
     assert emu.cleanup.call_count == 1
 
