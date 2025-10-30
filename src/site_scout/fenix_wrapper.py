@@ -3,7 +3,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 from __future__ import annotations
 
-from contextlib import suppress
 from logging import getLogger
 from os import getenv
 from shutil import copyfile
@@ -11,8 +10,8 @@ from subprocess import TimeoutExpired
 from time import perf_counter
 from typing import TYPE_CHECKING
 
-from fxpoppet import ADBLaunchError, ADBProcess, ADBSession, Reason
-from fxpoppet.adb_session import ADBCommunicationError, ADBSessionError
+from fxpoppet.adb_process import ADBLaunchError, ADBProcess, Reason
+from fxpoppet.adb_session import ADBSession, ADBSessionError
 from fxpoppet.emulator.android import AndroidEmulator, AndroidEmulatorError
 
 from .browser_wrapper import (
@@ -55,9 +54,7 @@ class FenixWrapper(BrowserWrapper):
         if self._proc is not None:
             self._proc.cleanup()
         if self._session is not None:
-            if self._session.connected:
-                self._session.reverse_remove()
-            self._session.disconnect()
+            self._session.reverse_remove()
         if self._device is not None:
             self._env_mgr.release_device(self._device)
 
@@ -111,23 +108,22 @@ class FenixWrapper(BrowserWrapper):
             LOG.error("Failed to select target device!")
             return False
         # connect to the device
-        session = ADBSession(self._device)
-        with suppress(ADBCommunicationError, ADBSessionError):
-            session.connect(as_root=True, boot_timeout=10)
-        if not session.connected:
-            LOG.error("FenixWrapper failed to connect to device!")
+        try:
+            session = ADBSession.connect(self._device, as_root=True, boot_timeout=10)
+        except ADBSessionError as exc:
+            LOG.error("FenixWrapper failed to connect to device: %s", exc)
             self._env_mgr.shutdown_device(self._device)
             return False
-        LOG.debug("connected to '%s' (%s)", self._device, session.device_id)
+        LOG.debug("connected to '%s'", self._device)
         self._session = session
         self._session.symbols[self._package] = self.args.binary.parent / "symbols"
-        # launch the browser on the device
         try:
             self._proc = ADBProcess(self._package, self._session)
-        except ADBSessionError:
-            LOG.error("FenixWrapper ADBProcess init failed!")
+        except ADBSessionError as exc:
+            LOG.error("FenixWrapper launch failed: %s", exc)
             self._env_mgr.shutdown_device(self._device)
             return False
+        # launch the browser on the device
         try:
             self._proc.launch(
                 str(url),
@@ -141,7 +137,7 @@ class FenixWrapper(BrowserWrapper):
                 prefs_js=self.args.prefs_file,
             )
         except ADBLaunchError as exc:
-            LOG.error("ADBProcess LaunchError: %s", exc)
+            LOG.error("ADBLaunchError: %s", exc)
             self.close()
             self._env_mgr.shutdown_device(self._device)
             if raise_on_failure:
@@ -256,11 +252,11 @@ class EmulatorPool:
                     raise
                 return
             self._launch_failures = 0
+            serial = f"emulator-{emu.port}"
             if not self._prepare_emulator(emu, apk):
                 self._shutdown_emulator(emu)
-                LOG.warning("Failed to prepare device")
+                LOG.warning("Failed to prepare device '%s'", serial)
                 return
-            serial = f"emulator-{emu.port}"
             assert serial not in self._emulators
             self._emulators[serial] = emu
             assert len(self._emulators) <= self._size_limit
@@ -312,17 +308,16 @@ class EmulatorPool:
             if emu.poll() is not None:
                 # emulator is not running
                 continue
-            session = ADBSession(serial)
-            with suppress(ADBCommunicationError, ADBSessionError):
-                session.connect(as_root=False, boot_timeout=10)
-            if not session.connected:
-                LOG.warning("Cannot connect to emulator '%s'", serial)
+            try:
+                ADBSession.connect(serial, as_root=False, boot_timeout=10)
+            except ADBSessionError as exc:
+                LOG.warning("Cannot connect to emulator '%s': %s", serial, exc)
                 self._shutdown_emulator(emu)
 
     def _launch_emulator(self) -> AndroidEmulator:
         port = AndroidEmulator.search_free_ports()
         avd_name = f"x86.{port:d}"
-        LOG.debug("launching emulator 'emulator-%d'...", port)
+        LOG.debug("launching 'emulator-%d'...", port)
         AndroidEmulator.create_avd(avd_name)
         try:
             emu = AndroidEmulator(
@@ -339,33 +334,35 @@ class EmulatorPool:
         return emu
 
     def _prepare_emulator(self, emu: AndroidEmulator, apk: Path) -> bool:
-        LOG.debug("preparing device 'emulator-%d'...", emu.port)
-        session = ADBSession(f"emulator-{emu.port}")
-        with suppress(ADBCommunicationError, ADBSessionError):
-            session.connect(as_root=True, boot_timeout=10)
-        if not session.connected:
-            LOG.warning("Cannot connect to prepare emulator")
-            return False
+        serial = f"emulator-{emu.port}"
+        LOG.debug("preparing '%s'...", serial)
         try:
-            # disable some UI animations
-            session.shell(["settings", "put", "global", "animator_duration_scale", "0"])
-            session.shell(
-                ["settings", "put", "global", "transition_animation_scale", "0"]
-            )
-            session.shell(["settings", "put", "global", "window_animation_scale", "0"])
-            # prevent device throttling
-            session.shell(["settings", "put", "global", "device_idle_enabled", "0"])
-            session.shell(["settings", "put", "global", "low_power", "0"])
-            session.shell(
-                ["settings", "put", "global", "background_process_limit", "0"]
-            )
-            session.shell(["dumpsys", "deviceidle", "disable"])
-            session.install(apk)
-        except ADBCommunicationError:
-            LOG.debug("ADBCommunicationError during prep")
+            session = ADBSession.connect(serial, as_root=True, boot_timeout=10)
+        except ADBSessionError as exc:
+            LOG.debug("cannot connect to prepare emulator '%s': %s", serial, exc)
             return False
-        finally:
-            session.disconnect()
+        # disable some UI animations
+        session.device.shell(
+            ["settings", "put", "global", "animator_duration_scale", "0"]
+        )
+        session.device.shell(
+            ["settings", "put", "global", "transition_animation_scale", "0"]
+        )
+        session.device.shell(
+            ["settings", "put", "global", "window_animation_scale", "0"]
+        )
+        # prevent device throttling
+        session.device.shell(["settings", "put", "global", "device_idle_enabled", "0"])
+        session.device.shell(["settings", "put", "global", "low_power", "0"])
+        session.device.shell(
+            ["settings", "put", "global", "background_process_limit", "0"]
+        )
+        session.device.shell(["dumpsys", "deviceidle", "disable"])
+        try:
+            session.install(apk)
+        except ADBSessionError as exc:
+            LOG.debug("failed to install APK: %s", exc)
+            return False
         return True
 
     @staticmethod
@@ -384,13 +381,15 @@ class EmulatorPool:
             emu.cleanup()
 
     def _trim_emulators(self) -> None:
-        # remove emulators that are not running
+        # scan pool for emulators that are not running
         not_running: list[str] = []
         for serial, emu in self._emulators.items():
-            if emu.poll() is not None:
+            exit_code = emu.poll()
+            if exit_code is not None:
+                LOG.debug("removing pool entry: '%s' (%d)", serial, exit_code)
                 not_running.append(serial)
+        # remove emulators that are not running from the pool
         for serial in not_running:
-            LOG.debug("removing emulator '%s' from pool", serial)
             if serial in self._in_use:
                 LOG.warning("Emulator '%s' not running and in use!", serial)
                 self._in_use.remove(serial)
