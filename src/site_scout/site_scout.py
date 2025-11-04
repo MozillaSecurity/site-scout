@@ -359,7 +359,7 @@ class SiteScout:
                 url,
                 load_wait=90 if browser.debugger() else 60,
                 mode=self._explore,
-                pause=10,
+                pause=15 if browser.debugger() else 10,
             )
         else:
             explorer = None
