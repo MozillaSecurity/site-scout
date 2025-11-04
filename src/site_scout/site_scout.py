@@ -357,7 +357,7 @@ class SiteScout:
         if self._explore is not None:
             explorer = browser.create_explorer(
                 url,
-                load_wait=60 if browser.debugger() else 90,
+                load_wait=90 if browser.debugger() else 60,
                 mode=self._explore,
                 pause=10,
             )
@@ -467,7 +467,7 @@ class SiteScout:
                 visit.explorer.close()
                 # check if browser closed or potentially crashed
                 if visit.explorer.status.state not in PAGE_LOAD_FAILURES:
-                    visit.browser.wait(10 if visit.browser.debugger() else 30)
+                    visit.browser.wait(30 if visit.browser.debugger() else 10)
                 visit.close()
                 complete.append(index)
             elif visit_runtime >= time_limit:
