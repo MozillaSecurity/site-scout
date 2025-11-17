@@ -106,9 +106,13 @@ def test_parse_args(capsys, tmp_path):
 def test_main(tmp_path):
     """test main()"""
 
-    # no data file
+    # no data file and nothing to do
     data_file = tmp_path / "test.yml"
-    assert main([str(data_file)]) == 0
+    assert main([str(data_file)]) == 1
+    assert not data_file.exists()
+
+    # remove url (data file does not exists)
+    assert main([str(data_file), "-r", "test.com"]) == 1
     assert not data_file.exists()
 
     # invalid data file
@@ -116,11 +120,7 @@ def test_main(tmp_path):
     assert main([str(data_file)]) == 1
     data_file.unlink()
 
-    # remove url (data file does not exists)
-    assert main([str(data_file), "-r", "test.com"]) == 0
-    assert not data_file.exists()
-
-    # add single url
+    # add single url (create file)
     assert main([str(data_file), "-u", "test.com"]) == 0
     assert data_file.exists()
 
@@ -140,7 +140,7 @@ def test_main(tmp_path):
     assert main([str(data_file), "-r", "blah"]) == 0
     assert data_file.stat().st_size == file_size
 
-    # add urls from txt file
+    # add urls from txt file (data file exists)
     txt = tmp_path / "urls_list.txt"
     txt.write_text("1.test.com\n\n2.test.com\n#ignored.com\nother.com")
     file_size = data_file.stat().st_size
@@ -151,7 +151,7 @@ def test_main(tmp_path):
     assert main([str(data_file), "-d", "--domain-entries", "2"]) == 0
     assert data_file.exists()
 
-    # add urls from yml file
+    # add urls from yml file (create file)
     data_file.unlink()
     yml = tmp_path / "urls_list.yml"
     yml.write_text("'test.com':\n  '1':\n  - '/'\n  '2':\n  - '/'\n")

@@ -304,6 +304,9 @@ def main(argv: list[str] | None = None) -> int:
         if changed or args.force_save:
             LOG.info("Saving '%s'...", args.url_db)
             urls.save_yml(args.url_db)
+        elif not args.url_db.is_file():
+            LOG.error("File not found '%s'", args.url_db)
+            return 1
         else:
             LOG.info("No change made.")
 
@@ -328,10 +331,7 @@ def main(argv: list[str] | None = None) -> int:
                 LOG.info("> %d '%s'", count, domain)
 
         # show summary
-        try:
-            file_size = args.url_db.stat().st_size
-        except FileNotFoundError:
-            file_size = 0
+        file_size = args.url_db.stat().st_size
         LOG.info(
             "%s URLs (%s domains) in db (%s bytes).",
             f"{len(urls):,d}",
