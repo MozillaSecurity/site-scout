@@ -39,15 +39,14 @@ class UrlCollection:
 
     def __len__(self) -> int:
         count = 0
-        for domain in self._db:
-            for subdomain in self._db[domain]:
-                count += len(self._db[domain][subdomain])
+        for domain_entries in self._db.values():
+            count += sum(len(paths) for paths in domain_entries.values())
         return count
 
     def __iter__(self) -> Generator[URL]:
-        for domain in self._db:
-            for subdomain in self._db[domain]:
-                for path in self._db[domain][subdomain]:
+        for domain, domain_entries in self._db.items():
+            for subdomain, paths in domain_entries.items():
+                for path in paths:
                     yield URL(domain, subdomain=subdomain, path=path)
 
     def add_list(self, urls_file: Path) -> int:
@@ -154,11 +153,8 @@ class UrlCollection:
             A mapping of domains and entry counts.
         """
         results: dict[str, int] = {}
-        for domain in self._db:
-            count = 0
-            for sub in self._db[domain]:
-                count += len(self._db[domain][sub])
-            results[domain] = count
+        for domain, domain_entries in self._db.items():
+            results[domain] = sum(len(paths) for paths in domain_entries.values())
         return results
 
     def remove_url(self, url: str) -> bool:
@@ -227,8 +223,8 @@ class UrlCollection:
         Returns:
             None.
         """
-        for subdomains in self._db.values():
-            for paths in subdomains.values():
+        for domain_entries in self._db.values():
+            for paths in domain_entries.values():
                 paths.sort()
 
 
@@ -294,6 +290,7 @@ def main(argv: list[str] | None = None) -> int:
             urls = UrlCollection.load_yml(args.url_db)
             if urls is None:
                 return 1
+            LOG.debug("sorting paths...")
             urls.sort_paths()
         else:
             urls = UrlCollection()
@@ -325,7 +322,7 @@ def main(argv: list[str] | None = None) -> int:
             if changed:
                 LOG.info("Removed 1 URL.")
 
-        # deduplicate entries
+        LOG.debug("deduplicating entries...")
         deduped = urls.deduplicate_www()
         if deduped > 0:
             LOG.info("Total URLs deduplicated: %s.", f"{deduped:,d}")
