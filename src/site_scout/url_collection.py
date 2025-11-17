@@ -107,6 +107,31 @@ class UrlCollection:
             return True
         return False
 
+    def deduplicate_www(self) -> int:
+        """Scan domain entries with no subdomain and 'www' and remove duplicate entries
+        favoring 'www'. For example if both 'mozilla.org/' and 'www.mozilla.org/' exist
+        only 'www.mozilla.org/' will be kept.
+
+        Args:
+            None
+
+        Returns:
+            Total URLs deduplicated.
+        """
+        count = 0
+        # iterate over all domains
+        for name, entries in self._db.items():
+            if "www" in entries and "" in entries:
+                # iterate over duplicate paths and remove them
+                for path in tuple(x for x in entries[""] if x in entries["www"]):
+                    count += 1
+                    entries[""].remove(path)
+                    LOG.debug("deduped www.%s%s", name, path)
+                # remove empty subdomain entry if needed
+                if not entries[""]:
+                    del entries[""]
+        return count
+
     @property
     def domains(self) -> Generator[str]:
         """All known domains.
@@ -299,6 +324,12 @@ def main(argv: list[str] | None = None) -> int:
             changed = urls.remove_url(args.remove)
             if changed:
                 LOG.info("Removed 1 URL.")
+
+        # deduplicate entries
+        deduped = urls.deduplicate_www()
+        if deduped > 0:
+            LOG.info("Total URLs deduplicated: %s.", f"{deduped:,d}")
+            changed = True
 
         # save data
         if changed or args.force_save:
