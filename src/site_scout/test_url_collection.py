@@ -90,6 +90,18 @@ def test_url_collection_sorting():
     assert urls._db["a.com"]["b"][2] == "/b"
 
 
+def test_url_collection_deduplicate_www():
+    """test UrlCollection.deduplicate_www()"""
+    urls = UrlCollection()
+    urls.add_str("a.com/")
+    urls.add_str("www.a.com/")
+    assert len(urls) == 2
+    assert urls.deduplicate_www() == 1
+    assert len(urls) == 1
+    assert "www" in urls._db["a.com"]
+    assert "/" in urls._db["a.com"]["www"]
+
+
 def test_parse_args(capsys, tmp_path):
     """test parse_args()"""
     #
@@ -157,6 +169,14 @@ def test_main(tmp_path):
     yml.write_text("'test.com':\n  '1':\n  - '/'\n  '2':\n  - '/'\n")
     assert main([str(data_file), "-l", str(yml)]) == 0
     assert data_file.stat().st_size > 5
+
+    # deduplicate test.com and www.test.com
+    data_file.unlink()
+    assert main([str(data_file), "-u", "www.test.com"]) == 0
+    file_size = data_file.stat().st_size
+    assert file_size > 0
+    assert main([str(data_file), "-u", "test.com"]) == 0
+    assert data_file.stat().st_size == file_size
 
 
 def test_main_disable_logging(caplog, capsys, tmp_path):
