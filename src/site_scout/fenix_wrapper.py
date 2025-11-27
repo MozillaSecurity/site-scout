@@ -41,10 +41,11 @@ class FenixWrapper(BrowserWrapper):
     ) -> None:
         super().__init__(args, working_path, env_mgr)
         self._env_mgr = env_mgr
-        self._package = ADBSession.get_package_name(args.binary)
-        if self._package is None:
+        package = ADBSession.get_package_name(args.binary)
+        if package is None:
             LOG.error("FenixWrapper failed to find package name!")
             raise RuntimeError("Could not find package name.")
+        self._package = package
         self._proc: ADBProcess | None = None
         self._session: ADBSession | None = None
         # TODO: generate prefs if needed
@@ -99,7 +100,6 @@ class FenixWrapper(BrowserWrapper):
         raise_on_failure: bool,
     ) -> bool:
         assert not explore, "explore not supported"
-        assert self._package is not None
         assert self._proc is None
         assert self._session is None
         # select a device
@@ -400,7 +400,6 @@ class FenixEnvironmentManager(EnvironmentManager):
     """FenixEnvironmentManager is used to add support for Firefox for Android."""
 
     def __init__(self, instance_limit: int, browser_args: BrowserArgs) -> None:
-        assert instance_limit > 0
         super().__init__()
         self._pool = EmulatorPool(
             instance_limit, display_mode=browser_args.display_mode or "default"

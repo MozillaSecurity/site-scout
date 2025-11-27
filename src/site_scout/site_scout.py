@@ -85,7 +85,6 @@ class Status:
     __slots__ = ("_dst", "_next", "_rate_limit", "_start")
 
     def __init__(self, dst: Path, rate_limit: int = 60) -> None:
-        assert dst
         assert rate_limit >= 0
         self._dst = dst
         self._next: float = 0
