@@ -243,6 +243,9 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
     if args.binary.suffix.lower() == ".apk":
         args.browser = "fenix"
 
+    if args.explore is not None and args.browser == "fenix":
+        parser.error("--explore not supported with selected browser")
+
     for in_path in args.input:
         if not in_path.exists():
             parser.error(f"-i/--input does not exist: '{in_path}'")

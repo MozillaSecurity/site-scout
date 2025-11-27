@@ -57,6 +57,12 @@ def test_parse_args_checks(capsys, tmp_path):
         parse_args([str(dummy_file), "-i", str(dummy_file), "--time-limit", "-1"])
     assert "--time-limit must be > 0" in capsys.readouterr()[-1]
 
+    with raises(SystemExit):
+        parse_args(
+            [str(dummy_file), "-i", str(dummy_file), "--explore", "--browser", "fenix"]
+        )
+    assert "-explore not supported with selected browser" in capsys.readouterr()[-1]
+
 
 def test_parse_args_debugger(mocker, capsys, tmp_path):
     """test parse_args() rr/pernosco checks"""
