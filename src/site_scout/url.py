@@ -94,7 +94,6 @@ class URL:
 
         return cls(domain, subdomain=subdomain, path=path, scheme=scheme)
 
-    # pylint: disable=too-many-branches
     @classmethod
     def parse(cls, url: str) -> URL:
         """Parse URL from a given string. Only URLs with a valid domain and tld are

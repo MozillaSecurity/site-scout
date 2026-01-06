@@ -427,7 +427,6 @@ class SiteScout:
                 parsed.alias = "REDACTED"
             self._urls.append(parsed)
 
-    # pylint: disable=too-many-branches
     def _process_active(
         self,
         time_limit: int,

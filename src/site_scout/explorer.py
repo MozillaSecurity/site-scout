@@ -182,9 +182,9 @@ class Explorer:
             assert seconds >= 0
             can_skip.wait(seconds)
 
-        explore_duration = None
-        load_duration = None
-        url_loaded = None
+        explore_duration: float | None = None
+        load_duration: float | None = None
+        url_loaded: str | None = None
         state = State.INITIALIZING
         try:
             with PageExplorer(binary=binary, port=port) as explorer:
@@ -221,13 +221,19 @@ class Explorer:
                     title,
                     url_loaded,
                 )
+                if not explorer.is_connected():
+                    return
                 # wait for more content to load/render/run
                 LOG.debug("pausing for %ds...", pause)
                 can_skip.wait(timeout=pause)
+                if not explorer.is_connected():
+                    return
                 if mode == ExplorerMode.ALL:
                     # attempt to find and activate "skip to content" link
                     state = State.SKIP_CONTENT
                     explorer.skip_to_content()
+                    if not explorer.is_connected():
+                        return
                     # interact with content
                     state = State.EXPLORING
                     start_time = perf_counter()
@@ -235,6 +241,8 @@ class Explorer:
                         # failed to execute all explore instructions
                         return
                     explore_duration = perf_counter() - start_time
+                    if not explorer.is_connected():
+                        return
                 # attempt to close the browser
                 state = State.CLOSING
                 explorer.close_browser(wait=10)

@@ -36,7 +36,6 @@ def is_headless() -> bool:
     )
 
 
-# pylint: disable=too-many-branches
 def parse_args(argv: list[str] | None = None) -> Namespace:
     """Argument parsing"""
     parser = ArgumentParser(
