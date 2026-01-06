@@ -276,7 +276,6 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
     return args
 
 
-# pylint: disable=too-many-branches
 def main(argv: list[str] | None = None) -> int:
     """Main function"""
     args = parse_args(argv)

@@ -170,7 +170,7 @@ def test_scan_input(tmp_path):
     (tmp_path / "test.yml").touch()
     assert any(scan_input([(tmp_path / "test.yml")], ".yml"))
     # single file in directory
-    assert len(tuple(scan_input([tmp_path], ".yml"))) == 1
+    assert sum(1 for _ in scan_input([tmp_path], ".yml")) == 1
     # no suffix match
     assert not any(scan_input([tmp_path], ".foo"))
     # multiple files in directory

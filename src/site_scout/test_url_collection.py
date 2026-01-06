@@ -32,7 +32,7 @@ def test_url_collection_02(tmp_path):
     urls = UrlCollection(BASIC_URL_DB)
     assert urls
     assert len(urls) == 4
-    assert len(tuple(urls.domains)) == 2
+    assert sum(1 for _ in urls.domains) == 2
     # save and load
     yml = tmp_path / "urls.yml"
     urls.save_yml(yml)

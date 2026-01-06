@@ -10,27 +10,37 @@ from .explorer import Explorer, ExplorerError, ExplorerMode, State
 
 
 @mark.parametrize(
-    "get_value, explore_return, state, title",
+    "get_value, explore_return, is_connected, state, title",
     (
         # navigation failed
-        (ExplorerError(), False, State.LOADING, None),
+        (ExplorerError(), False, [], State.LOADING, None),
+        # failed during load
+        (PageLoad.SUCCESS, False, [False], State.LOADING, "title"),
+        # failed during load delay
+        (PageLoad.SUCCESS, False, [True, False], State.LOADING, "title"),
         # failed to get page title
-        (PageLoad.SUCCESS, True, State.CLOSED, None),
+        (PageLoad.SUCCESS, True, [True] * 4 + [False], State.CLOSED, None),
         # server not found
-        (PageLoad.FAILURE, False, State.NOT_FOUND, "Server Not Found"),
+        (PageLoad.FAILURE, False, [], State.NOT_FOUND, "Server Not Found"),
         # problem loading page
-        (PageLoad.FAILURE, False, State.LOAD_FAILURE, "Problem loading page"),
+        (PageLoad.FAILURE, False, [], State.LOAD_FAILURE, "Problem loading page"),
         # unknown navigate/load failure
-        (PageLoad.FAILURE, False, State.UNHANDLED_ERROR, "error title"),
+        (PageLoad.FAILURE, False, [], State.UNHANDLED_ERROR, "error title"),
+        # failed during "skip to content"
+        (PageLoad.SUCCESS, False, [True] * 2 + [False], State.SKIP_CONTENT, "title"),
         # browser crashed
-        (PageLoad.SUCCESS, False, State.EXPLORING, "title"),
+        (PageLoad.SUCCESS, False, [True] * 3 + [False], State.EXPLORING, "title"),
+        # successful interaction and browser crashed after explore
+        (PageLoad.SUCCESS, True, [True] * 3 + [False], State.EXPLORING, "title"),
         # successful interaction and browser closed
-        (PageLoad.SUCCESS, True, State.CLOSED, "title"),
+        (PageLoad.SUCCESS, True, [True] * 4 + [False], State.CLOSED, "title"),
         # get timeout
-        (PageLoad.TIMEOUT, True, State.CLOSED, "title"),
+        (PageLoad.TIMEOUT, True, [True] * 4 + [False], State.CLOSED, "title"),
     ),
 )
-def test_explorer(mocker, tmp_path, get_value, explore_return, state, title):
+def test_explorer(
+    mocker, tmp_path, get_value, explore_return, is_connected, state, title
+):
     """test Explorer()"""
     page_explorer = mocker.patch(
         "site_scout.explorer.PageExplorer", autospec=True
@@ -38,7 +48,7 @@ def test_explorer(mocker, tmp_path, get_value, explore_return, state, title):
     page_explorer.current_url = "http://foo.foo"
     page_explorer.explore.return_value = explore_return
     page_explorer.get.side_effect = (get_value,)
-    page_explorer.is_connected.return_value = False
+    page_explorer.is_connected.side_effect = is_connected
     page_explorer.title = title
     with Explorer(tmp_path, 0, "http://foo.foo", pause=0) as explorer:
         assert not explorer._can_skip.is_set()
@@ -93,7 +103,6 @@ def test_explorer_modes(mocker, tmp_path, mode):
     page_explorer.current_url = "http://foo.foo"
     page_explorer.explore.return_value = State.CLOSED
     page_explorer.get.return_value = PageLoad.SUCCESS
-    page_explorer.is_connected.return_value = False
     page_explorer.title = "title"
     with Explorer(tmp_path, 0, "http://foo.foo", mode=mode, pause=0) as explorer:
         assert not explorer._can_skip.is_set()
