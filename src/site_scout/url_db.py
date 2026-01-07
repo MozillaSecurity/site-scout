@@ -3,14 +3,14 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 from __future__ import annotations
 
-from typing import Any, NewType, cast
+from typing import Any, TypeAlias
 
-# Note: Python 3.10+ use TypeAlias
-UrlDB = NewType("UrlDB", dict[str, dict[str, list[str]]])
+# pylint: disable=invalid-name
+UrlDB: TypeAlias = dict[str, dict[str, list[str]]]
 
 
 class UrlDBError(Exception):
-    """Raised when UrlDB related issues are detected."""
+    """Raised when UrlDb related issues are detected."""
 
 
 def verify_db(data: Any) -> UrlDB:
@@ -48,4 +48,4 @@ def verify_db(data: Any) -> UrlDB:
             for path in paths:
                 if not isinstance(path, str) or not path.startswith("/"):
                     raise UrlDBError("Path must be a string starting with '/'")
-    return cast("UrlDB", data)
+    return data
