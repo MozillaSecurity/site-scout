@@ -6,7 +6,7 @@ from __future__ import annotations
 from argparse import ArgumentParser, Namespace
 from logging import DEBUG, INFO, getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from .main import init_logging
 from .url_collection import UrlCollection
@@ -37,7 +37,7 @@ def split_collection(
         Number of files created.
     """
     # urls to add to file
-    current_batch = cast("UrlDB", {})
+    current_batch: UrlDB = {}
     # used to calculate projected file size
     current_size = 0
     file_num = 0

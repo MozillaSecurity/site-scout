@@ -7,7 +7,7 @@ from argparse import ArgumentParser, Namespace
 from bisect import insort
 from logging import DEBUG, INFO, getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from yaml import dump
 
@@ -34,7 +34,7 @@ class UrlCollection:
     __slots__ = ("_db", "unparsable")
 
     def __init__(self, url_db: UrlDB | None = None) -> None:
-        self._db = url_db or cast("UrlDB", {})
+        self._db: UrlDB = url_db or {}
         self.unparsable: set[str] = set()
 
     def __len__(self) -> int:
