@@ -53,7 +53,7 @@ class ExplorerMode(Enum):
     LOAD = auto()
 
 
-@dataclass(eq=False, frozen=True)
+@dataclass(eq=False, frozen=True, slots=True)
 class ExplorerStatus:
     """Used to collect status data from PageExplorer."""
 
