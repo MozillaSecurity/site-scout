@@ -52,7 +52,7 @@ def trim(in_str: str, max_len: int) -> str:
 
 
 # pylint: disable=too-many-instance-attributes
-@dataclass(eq=False, frozen=True)
+@dataclass(eq=False, frozen=True, slots=True)
 class VisitSummary:
     """Store data from completed Visit for analysis.
 

@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 LOG = getLogger(__name__)
 
 
-@dataclass(eq=False, frozen=True)
+@dataclass(eq=False, frozen=True, slots=True)
 class BrowserArgs:
     """Arguments specific to browser management.
 
