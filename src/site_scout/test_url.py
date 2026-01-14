@@ -46,21 +46,21 @@ def test_url_create(domain, subdomain, path, scheme, expected):
     "domain, subdomain, path, scheme, msg",
     [
         # bad domain
-        ("*", None, "/", "http", "Invalid domain '*'"),
+        ("*", None, "/", "http", r"Invalid domain '\*'"),
         # bad domain
         ("", None, "/", "http", "Invalid domain ''"),
         # bad domain
-        ("b a.d", None, "/", "http", "Invalid domain 'b a.d'"),
+        ("b a.d", None, "/", "http", r"Invalid domain 'b a\.d'"),
         # bad domain
-        ("b_a.d", None, "/", "http", "Invalid domain 'b_a.d'"),
+        ("b_a.d", None, "/", "http", r"Invalid domain 'b_a\.d'"),
         # bad domain
-        (".a.c", None, "/", "http", "Invalid domain '.a.c'"),
+        (".a.c", None, "/", "http", r"Invalid domain '\.a\.c'"),
         # bad subdomain
-        ("a.c", "$.foo", "/", "http", r"Invalid subdomain '\$.foo'"),
+        ("a.c", "$.foo", "/", "http", r"Invalid subdomain '\$\.foo'"),
         # bad subdomain
-        ("a.c", ".a", "/", "http", "Invalid subdomain '.a'"),
+        ("a.c", ".a", "/", "http", r"Invalid subdomain '\.a'"),
         # bad subdomain
-        ("a.c", "..a", "/", "http", "Invalid subdomain '..a'"),
+        ("a.c", "..a", "/", "http", r"Invalid subdomain '\.\.a'"),
         # bad subdomain
         ("d.c", "b a", "/", "http", "Invalid subdomain 'b a'"),
         # bad subdomain

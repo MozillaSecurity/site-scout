@@ -19,7 +19,7 @@ def test_fenix_wrapper_invalid_apk(mocker, tmp_path):
     """test FenixWrapper invalid APK"""
     session = mocker.patch("site_scout.fenix_wrapper.ADBSession", autospec=True)
     session.get_package_name.return_value = None
-    with raises(RuntimeError, match=r"Could not find package name."):
+    with raises(RuntimeError, match=r"Could not find package name\."):
         FenixWrapper(
             BrowserArgs(tmp_path / "target.apk", 10, 10),
             tmp_path,
