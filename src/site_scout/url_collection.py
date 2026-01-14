@@ -81,8 +81,8 @@ class UrlCollection:
         """
         try:
             parsed = URL.parse(url)
-        except URLParseError:
-            LOG.debug("failed to parse and add: '%s'", url)
+        except URLParseError as exc:
+            LOG.debug("add_str() failed: '%s' (%s)", url, exc)
             self.unparsable.add(url)
             return None
         return parsed if self.add_url(parsed) else None
@@ -168,8 +168,8 @@ class UrlCollection:
         """
         try:
             parsed = URL.parse(url)
-        except URLParseError:
-            LOG.debug("failed to parse and remove: '%s'", url)
+        except URLParseError as exc:
+            LOG.debug("remove_url() failed: '%s' (%s)", url, exc)
             return False
 
         try:
