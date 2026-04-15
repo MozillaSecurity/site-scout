@@ -139,7 +139,7 @@ class FirefoxWrapper(BrowserWrapper):
         assert self._ffp.reason is not None
         if self._ffp.reason == Reason.EXITED:
             return BrowserState.EXITED
-        if self._ffp.reason in {Reason.ALERT, Reason.WORKER}:
+        if self._ffp.reason == Reason.ALERT:
             return BrowserState.RESULT
         return BrowserState.CLOSED
 
