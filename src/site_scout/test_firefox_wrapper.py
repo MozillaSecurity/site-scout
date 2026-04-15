@@ -65,7 +65,7 @@ def test_firefox_wrapper_state(mocker, tmp_path):
         ffp.reason = Reason.ALERT
         assert browser.state() == BrowserState.RESULT
         ffp.reason = Reason.WORKER
-        assert browser.state() == BrowserState.RESULT
+        assert browser.state() == BrowserState.CLOSED
         ffp.reason = Reason.CLOSED
         assert browser.state() == BrowserState.CLOSED
         ffp.reason = Reason.EXITED
