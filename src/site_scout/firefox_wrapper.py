@@ -106,7 +106,7 @@ class FirefoxWrapper(BrowserWrapper):
                 env_mod={"MOZ_CRASHREPORTER_SHUTDOWN": "1"},
                 location=None if explore else str(url),
                 launch_timeout=self.args.launch_timeout,
-                log_limit=2 * 1024 * 1024,
+                log_limit=10 * 1024 * 1024,
                 marionette=0 if explore else None,
                 memory_limit=self.args.memory_limit,
                 prefs_js=self.args.prefs_file,
