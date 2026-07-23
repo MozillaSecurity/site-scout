@@ -18,6 +18,10 @@ pref:
     variants:
       default:
       - false
+  app.shield.optoutstudies.enabled:
+    variants:
+      default:
+      - false
   app.update.auto:
     variants:
       default:
@@ -27,6 +31,19 @@ pref:
       default:
       - false
   app.update.staging.enabled:
+    variants:
+      default:
+      - false
+  browser.EULA.override:
+    variants:
+      default:
+      - true
+  browser.aboutwelcome.enabled:
+    variants:
+      default:
+      - false
+  # disable splash screen
+  browser.aboutwelcome.experimentsGate.enabled:
     variants:
       default:
       - false
@@ -168,6 +185,10 @@ pref:
     variants:
       default:
       - 2
+  nimbus.rollouts.enabled:
+    variants:
+      default:
+      - false
   permissions.default.camera:
     variants:
       default:
