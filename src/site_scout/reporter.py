@@ -51,10 +51,10 @@ class FuzzManagerReporter:
 
     @staticmethod
     def _read_ffpuppet_log(log_path: Path, log_id: str) -> list[str] | None:
-        """Read logs created by FFPuppet.
+        """Read logs created by FFPuppet or ADBProcess (Fenix).
 
         Args:
-            log_path: Directory containing logs output by FFPuppet.
+            log_path: Directory containing logs output by FFPuppet or ADBProcess.
             log_id: Log to find. Must be: 'aux', 'stderr', 'stdout'.
 
         Returns:
@@ -64,11 +64,15 @@ class FuzzManagerReporter:
 
         log_file: Path | None = None
         if log_id == "aux":
-            # look for sanitizer logs
-            for entry in log_path.glob("log_*.txt"):
-                if "_asan_" in entry.name:
-                    log_file = entry
-                    break
+            # look for sanitizer logs (ADB/Fenix)
+            if (log_path / "log_asan.txt").is_file():
+                log_file = log_path / "log_asan.txt"
+            else:
+                # look for sanitizer logs (FFPuppet)
+                for entry in log_path.glob("log_*.txt"):
+                    if "_asan_" in entry.name:
+                        log_file = entry
+                        break
             # look for minidump logs
             if not log_file:
                 md_logs = sorted(log_path.glob("log_minidump_*.txt"))

@@ -2,6 +2,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
+# pylint: disable=protected-access
 from pytest import mark, raises
 
 from .reporter import FuzzManagerReporter
@@ -16,6 +17,8 @@ from .reporter import FuzzManagerReporter
         (False, None),
         # Sanitizer logs
         (True, "log_ffp_asan_16365.log.18532.txt"),
+        # Sanitizer logs (ADB/Fenix)
+        (True, "log_asan.txt"),
         # minidump logs
         (True, "log_minidump_00.txt"),
     ],
@@ -52,3 +55,30 @@ def test_fuzzmanager_reporter_02(tmp_path):
 
     with raises(FileNotFoundError):
         FuzzManagerReporter(tmp_path, fm_config=tmp_path / "missing")
+
+
+@mark.parametrize(
+    "logs, expected",
+    [
+        # no aux logs
+        ((), None),
+        # ADB/Fenix sanitizer log
+        (("log_asan.txt",), "log_asan.txt"),
+        # ADB/Fenix sanitizer log preferred over minidump log
+        (("log_asan.txt", "log_minidump_00.txt"), "log_asan.txt"),
+        # FFPuppet sanitizer log
+        (("log_ffp_asan_123.log.456.txt",), "log_ffp_asan_123.log.456.txt"),
+        # minidump log
+        (("log_minidump_00.txt",), "log_minidump_00.txt"),
+    ],
+)
+def test_fuzzmanager_reporter_03(tmp_path, logs, expected):
+    """test FuzzManagerReporter._read_ffpuppet_log() aux log selection"""
+    for log in logs:
+        (tmp_path / log).write_text(log)
+    (tmp_path / "log_stderr.txt").write_text("stderr")
+    result = FuzzManagerReporter._read_ffpuppet_log(tmp_path, "aux")
+    if expected is None:
+        assert result is None
+    else:
+        assert result == [expected]
